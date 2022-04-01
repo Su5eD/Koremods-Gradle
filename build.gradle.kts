@@ -25,7 +25,7 @@ pluginBundle {
 gradlePlugin {
     plugins {
         create("koremods-gradle") {
-            id = "wtf.gofancy.koremods-gradle"
+            id = "wtf.gofancy.koremods.koremods-gradle"
             displayName = "Koremods Gradle"
             description = "A Gradle plugin for pre-compiling Koremods scripts"
             implementationClass = "wtf.gofancy.koremods.gradle.KoremodsGradlePlugin"
@@ -34,16 +34,28 @@ gradlePlugin {
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(JavaVersion.VERSION_1_8.majorVersion))
+    toolchain.languageVersion.set(JavaLanguageVersion.of(JavaVersion.VERSION_11.majorVersion))
 }
 
 repositories {
     mavenCentral()
+    maven("https://su5ed.jfrog.io/artifactory/maven")
+    mavenLocal()
 }
 
 dependencies {
-    implementation(kotlin("reflect"))
+    implementation(kotlin("stdlib"))
     implementation(kotlin("stdlib-jdk8"))
+    implementation(kotlin("reflect"))
+    implementation(kotlin("scripting-compiler-embeddable"))
+    implementation(kotlin("scripting-common"))
+    implementation(kotlin("scripting-jvm"))
+    implementation(kotlin("scripting-jvm-host"))
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = "1.6.0")
+    
+    // TODO Better shade dep handling
+    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.1.26")
+    implementation(group = "io.github.config4k", name = "config4k", version = "0.4.2")
 
     testImplementation(group = "org.assertj", name = "assertj-core", version = "3.19.0")
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.7.1")
@@ -60,9 +72,9 @@ license {
 jgitver {
     strategy = Strategies.PATTERN
     versionPattern = "\${M}\${<m}\${<meta.COMMIT_DISTANCE}\${-~meta.QUALIFIED_BRANCH_NAME}"
-    
+
     policy(closureOf<JGitverPluginExtensionBranchPolicy> {
-        pattern = "(dev/.*)"
+        pattern = "(^master\$)|(dev\\/.*)"
         transformations = mutableListOf("IGNORE")
     })
 }
@@ -70,8 +82,10 @@ jgitver {
 tasks {
     withType<KotlinCompile> {
         kotlinOptions {
-            jvmTarget = JavaVersion.VERSION_1_8.toString()
-            freeCompilerArgs = listOf("-Xjvm-default=all", "-Xlambdas=indy")
+            jvmTarget = JavaVersion.VERSION_11.toString()
+            
+//            apiVersion = "1.4"
+//            languageVersion = "1.4"
         }
     }
 
@@ -85,14 +99,14 @@ tasks {
     withType<Jar> {
         manifest {
             attributes(
-                "Name" to "wtf/gofancy/koremods/gradle",
-                "Specification-Title" to "Koremods Gradle",
-                "Specification-Version" to project.version,
-                "Specification-Vendor" to "Garden of Fancy",
-                "Implementation-Title" to "wtf.gofancy.koremods.gradle",
-                "Implementation-Version" to project.version,
-                "Implementation-Vendor" to "Garden of Fancy",
-                "Implementation-Timestamp" to DateTimeFormatter.ISO_INSTANT.format(Instant.now())
+                    "Name" to "wtf/gofancy/koremods/gradle",
+                    "Specification-Title" to "Koremods Gradle",
+                    "Specification-Version" to project.version,
+                    "Specification-Vendor" to "Garden of Fancy",
+                    "Implementation-Title" to "wtf.gofancy.koremods.gradle",
+                    "Implementation-Version" to project.version,
+                    "Implementation-Vendor" to "Garden of Fancy",
+                    "Implementation-Timestamp" to DateTimeFormatter.ISO_INSTANT.format(Instant.now())
             )
         }
     }
@@ -102,17 +116,3 @@ tasks {
         distributionType = Wrapper.DistributionType.ALL
     }
 }
-
-publishing {
-    publications {
-        create<MavenPublication>("bleeding") {
-            from(components["java"])
-
-            // in order for gradle to find the plugin (otherwise a resolution strategy would need to be used)
-            groupId = "wtf.gofancy.koremods-gradle"
-            artifactId = "wtf.gofancy.koremods-gradle.plugin"
-            version = project.version.toString()
-        }
-    }
-}
-
