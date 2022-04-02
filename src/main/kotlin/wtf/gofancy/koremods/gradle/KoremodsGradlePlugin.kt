@@ -36,6 +36,7 @@ import wtf.gofancy.koremods.prelaunch.KoremodsBlackboard
 class KoremodsGradlePlugin : Plugin<Project> {
     companion object {
         const val KOREMODS_CONFIGURATION_NAME = "koremods"
+        const val SCRIPT_EXTENSION = "core.kts"
     }
 
     override fun apply(project: Project) {
@@ -55,18 +56,25 @@ class KoremodsGradlePlugin : Plugin<Project> {
             }
             .forEach { (sourceSet, resourceRoot, configFile) ->
                 val taskName = sourceSet.getTaskName("compile", "koremodsScripts")
+                val outputDir = project.buildDir.resolve(taskName)
 
-                val preCompileTask = project.tasks.register(taskName, PreCompileScriptsTask::class.java) { task ->
+                val preCompileTask = project.tasks.register(taskName, CompileKoremodsScriptsTask::class.java) { task ->
                     parseConfig<KoremodModConfig>(configFile.reader()).scripts
-                        .map(resourceRoot::resolve)
-                        .forEach(task.inputScripts::from)
+                        .forEach { script ->
+                            val inputFile = resourceRoot.resolve(script)
+                            val outputFile = outputDir.resolve(script.replace(SCRIPT_EXTENSION, "jar"))
+                            
+                            task.filesMap.add(CompileKoremodsScriptsTask.ScriptFileMapping(inputFile, outputFile))
+                        }
                 }
 
                 project.tasks.named(sourceSet.processResourcesTaskName, ProcessResources::class.java) { processResources ->
                     processResources.dependsOn(preCompileTask)
 
                     preCompileTask.get().run {
-                        inputScripts.forEach { file -> processResources.exclude { it.file == file } }
+                        filesMap.get().map(CompileKoremodsScriptsTask.ScriptFileMapping::inputFile).forEach { file -> 
+                            processResources.exclude { it.file == file }
+                        }
                         processResources.from(outputDir)
                     }
                 }

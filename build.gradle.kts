@@ -71,9 +71,7 @@ dependencies {
     implementation(kotlin("scripting-jvm-host"))
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = "1.6.0")
     
-    // TODO Better shade dep handling
-    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.1.26")
-    implementation(group = "io.github.config4k", name = "config4k", version = "0.4.2")
+    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.0")
 
     testImplementation(group = "org.assertj", name = "assertj-core", version = "3.19.0")
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.7.1")

@@ -33,9 +33,7 @@ import java.io.FileOutputStream
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
-import kotlin.script.experimental.api.hostConfiguration
 import kotlin.script.experimental.api.valueOrThrow
-import kotlin.script.experimental.host.ScriptingHostConfiguration
 import kotlin.script.experimental.host.toScriptSource
 import kotlin.script.experimental.jvm.impl.*
 import kotlin.script.experimental.jvm.jvm
@@ -49,9 +47,7 @@ fun compileScript(source: String, destFile: File, classPath: Collection<File>) {
         jvm {
             updateClasspath(classPath)
         }
-        hostConfiguration(ScriptingHostConfiguration()) // TODO TEMP disable cache
     }
-
     val compiler = JvmScriptCompiler()
 
     runBlocking {
