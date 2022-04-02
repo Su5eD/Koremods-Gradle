@@ -19,7 +19,7 @@ group = "wtf.gofancy.koremods"
 pluginBundle {
     website = "https://gitlab.com/gofancy/koremods"
     vcsUrl = "https://gitlab.com/gofancy/koremods/koremods-gradle"
-    tags = listOf("kotlin", "bytecode-manipulation")
+    tags = listOf("kotlin", "kotlin-script", "bytecode-manipulation")
 }
 
 gradlePlugin {
@@ -35,6 +35,24 @@ gradlePlugin {
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(JavaVersion.VERSION_11.majorVersion))
+}
+
+license {
+    header(project.file("NOTICE"))
+
+    ext["year"] = Calendar.getInstance().get(Calendar.YEAR)
+    ext["name"] = "Garden of Fancy"
+    ext["app"] = "Koremods Gradle"
+}
+
+jgitver {
+    strategy = Strategies.PATTERN
+    versionPattern = "\${M}\${<m}\${<meta.COMMIT_DISTANCE}\${-~meta.QUALIFIED_BRANCH_NAME}"
+
+    policies.add(JGitverPluginExtensionBranchPolicy().apply { 
+        pattern = "(^master\$)|(dev\\/.*)"
+        transformations = listOf("IGNORE")
+    })
 }
 
 repositories {
@@ -61,31 +79,10 @@ dependencies {
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.7.1")
 }
 
-license {
-    header(project.file("NOTICE"))
-
-    ext["year"] = Calendar.getInstance().get(Calendar.YEAR)
-    ext["name"] = "Garden of Fancy"
-    ext["app"] = "Koremods Gradle"
-}
-
-jgitver {
-    strategy = Strategies.PATTERN
-    versionPattern = "\${M}\${<m}\${<meta.COMMIT_DISTANCE}\${-~meta.QUALIFIED_BRANCH_NAME}"
-
-    policy(closureOf<JGitverPluginExtensionBranchPolicy> {
-        pattern = "(^master\$)|(dev\\/.*)"
-        transformations = mutableListOf("IGNORE")
-    })
-}
-
 tasks {
     withType<KotlinCompile> {
         kotlinOptions {
             jvmTarget = JavaVersion.VERSION_11.toString()
-            
-//            apiVersion = "1.4"
-//            languageVersion = "1.4"
         }
     }
 
