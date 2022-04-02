@@ -10,9 +10,10 @@ import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
 
 @CacheableTask
-abstract class PreCompileScriptsTask : DefaultTask() {
+open class PreCompileScriptsTask : DefaultTask() {
     companion object {
         // TODO Remove hardcoding
+        const val SCRIPT_EXTENSION = "core.kts"
         const val KOTLIN_VERSION = "1.6.10"
         val COMPILE_DEP_NAMES = setOf("kotlin-scripting-", "kotlin-script-runtime", "kotlin-compiler-embeddable")
         val RUNTIME_DEP_NAMES = setOf("asm", "asm-commons", "asm-tree")
@@ -21,18 +22,15 @@ abstract class PreCompileScriptsTask : DefaultTask() {
 
     @get:InputFiles
     @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val inputScripts: ConfigurableFileCollection
+    val inputScripts: ConfigurableFileCollection = project.objects.fileCollection()
 
     @get:OutputDirectory
-    abstract val outputDir: DirectoryProperty
-
-    init {
-        outputDir.convention(project.layout.buildDirectory.dir("koremods/${name}"))
-    }
+    val outputDir: DirectoryProperty = project.objects.directoryProperty()
+        .convention(project.layout.buildDirectory.dir(name)) // TODO MapProperty<String, File>
 
     @TaskAction
     fun apply() {
-        val projectConf = project.configurations.getByName("koremodsImplementation")
+        val projectConf = project.configurations.getByName(KoremodsGradlePlugin.KOREMODS_CONFIGURATION_NAME)
         val koremodsDep = projectConf.singleFile
 
         val classpath = ClasspathUtil.getClasspath(Thread.currentThread().contextClassLoader).asURLs
@@ -46,7 +44,7 @@ abstract class PreCompileScriptsTask : DefaultTask() {
                 .map { File(it.toURI()) }
                 .plus(koremodsDep)
                 .toSet()
-        val classloader = KoremodsClassLoader(DEP_PACKAGES, deps)
+        val classloader = CompilerClassLoader(DEP_PACKAGES, deps)
 
         val cls = classloader.loadClass("wtf.gofancy.koremods.compile.KoremodsScriptCompiler")
         val compileMethod = MethodHandles.lookup().findStatic(cls, "compileScript", MethodType.methodType(Void::class.javaPrimitiveType, String::class.java, File::class.java, Collection::class.java))
@@ -55,7 +53,12 @@ abstract class PreCompileScriptsTask : DefaultTask() {
 
         val outputDir = outputDir.get()
         inputScripts.forEach { file ->
-            val saveFile = outputDir.file("${file.nameWithoutExtension}.jar").asFile
+            val fileRoot = file.parentFile.parentFile
+            val relativeFile = file.relativeTo(fileRoot)
+            val outputFile = relativeFile.path.replace(SCRIPT_EXTENSION, "jar")
+            val saveFile = outputDir.file(outputFile).asFile
+            
+            saveFile.parentFile.mkdirs()
             val source = file.readText()
 
             compileMethod.invoke(source, saveFile, scriptLibraries)

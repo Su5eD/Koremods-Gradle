@@ -3,7 +3,7 @@ package wtf.gofancy.koremods.gradle
 import java.net.URL
 import java.net.URLClassLoader
 
-class KoremodsClassLoader(private val priorityClasses: Set<String>, urls: Array<URL>) : URLClassLoader(urls, Thread.currentThread().contextClassLoader) {
+class CompilerClassLoader(private val priorityClasses: Set<String>, urls: Array<URL>) : URLClassLoader(urls, Thread.currentThread().contextClassLoader) {
 
     override fun loadClass(name: String, resolve: Boolean): Class<*> {
         if (priorityClasses.any(name::startsWith)) {
