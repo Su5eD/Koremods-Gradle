@@ -26,7 +26,6 @@
 
 package wtf.gofancy.koremods.compile
 
-import kotlinx.coroutines.runBlocking
 import wtf.gofancy.koremods.script.KoremodsKtsScript
 import java.io.File
 import java.io.FileOutputStream
@@ -35,13 +34,14 @@ import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
 import kotlin.script.experimental.api.valueOrThrow
 import kotlin.script.experimental.host.toScriptSource
+import kotlin.script.experimental.impl.internalScriptingRunSuspend
 import kotlin.script.experimental.jvm.impl.*
 import kotlin.script.experimental.jvm.jvm
 import kotlin.script.experimental.jvm.updateClasspath
 import kotlin.script.experimental.jvmhost.JvmScriptCompiler
 import kotlin.script.experimental.jvmhost.createJvmCompilationConfigurationFromTemplate
 
-@Suppress("unused")
+@Suppress("UNUSED", "DEPRECATION_ERROR")
 fun compileScript(source: String, destFile: File, classPath: Collection<File>) {
     val compileConf = createJvmCompilationConfigurationFromTemplate<KoremodsKtsScript> {
         jvm {
@@ -50,7 +50,7 @@ fun compileScript(source: String, destFile: File, classPath: Collection<File>) {
     }
     val compiler = JvmScriptCompiler()
 
-    runBlocking {
+    internalScriptingRunSuspend {
         val compiled = compiler(source.toScriptSource(), compileConf)
         val compiledValue = compiled.valueOrThrow()
         val compiledScript = (compiledValue as? KJvmCompiledScript)
