@@ -45,6 +45,8 @@ license {
     ext["year"] = Calendar.getInstance().get(Calendar.YEAR)
     ext["name"] = "Garden of Fancy"
     ext["app"] = "Koremods Gradle"
+    
+    include("**/**.kt")
 }
 
 jgitver {
@@ -72,7 +74,7 @@ dependencies {
     implementation(kotlin("scripting-jvm"))
     implementation(kotlin("scripting-jvm-host"))
     
-    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.5")
+    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.7")
 
     testImplementation(group = "org.assertj", name = "assertj-core", version = "3.19.0")
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.7.1")

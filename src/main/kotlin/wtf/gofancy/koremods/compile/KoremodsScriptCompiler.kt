@@ -26,37 +26,29 @@
 
 package wtf.gofancy.koremods.compile
 
-import wtf.gofancy.koremods.script.KoremodsKtsScript
+import wtf.gofancy.koremods.RawScript
+import wtf.gofancy.koremods.compileScriptResult
+import wtf.gofancy.koremods.readScriptSource
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
-import kotlin.script.experimental.api.valueOrThrow
-import kotlin.script.experimental.host.toScriptSource
-import kotlin.script.experimental.impl.internalScriptingRunSuspend
 import kotlin.script.experimental.jvm.impl.*
 import kotlin.script.experimental.jvm.jvm
 import kotlin.script.experimental.jvm.updateClasspath
-import kotlin.script.experimental.jvmhost.JvmScriptCompiler
-import kotlin.script.experimental.jvmhost.createJvmCompilationConfigurationFromTemplate
 
-@Suppress("UNUSED", "DEPRECATION_ERROR")
-fun compileScript(source: String, destFile: File, classPath: Collection<File>) {
-    val compileConf = createJvmCompilationConfigurationFromTemplate<KoremodsKtsScript> {
+@Suppress("UNUSED")
+fun compileScriptPack(script: RawScript<Path>, destFile: File, classPath: Collection<File>) {
+    val source = readScriptSource(script.identifier, script.source)
+    val compiled = compileScriptResult(script.identifier, source) {
         jvm {
             updateClasspath(classPath)
         }
     }
-    val compiler = JvmScriptCompiler()
-
-    internalScriptingRunSuspend {
-        val compiled = compiler(source.toScriptSource(), compileConf)
-        val compiledValue = compiled.valueOrThrow() // TODO
-        val compiledScript = (compiledValue as? KJvmCompiledScript)
-            ?: throw IllegalArgumentException("Unsupported compiled script type $compiledValue")
-        compiledScript.saveScriptToJar(destFile)
-    }
+    val compiledScript = compiled as? KJvmCompiledScript ?: throw IllegalArgumentException("Unsupported compiled script type $compiled")
+    compiledScript.saveScriptToJar(destFile)
 }
 
 fun KJvmCompiledScript.saveScriptToJar(outputJar: File) {

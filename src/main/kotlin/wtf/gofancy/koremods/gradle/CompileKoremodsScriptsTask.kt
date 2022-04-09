@@ -27,17 +27,20 @@ package wtf.gofancy.koremods.gradle
 import org.gradle.api.DefaultTask
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.tasks.*
+import wtf.gofancy.koremods.RawScript
+import wtf.gofancy.koremods.script.KoremodsKtsScript
 import java.io.File
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
-import java.net.URLClassLoader
+import java.nio.file.Path
 
 @CacheableTask
 open class CompileKoremodsScriptsTask : DefaultTask() {
     @get:Nested
-    val filesMap: ListProperty<ScriptFileMapping> = project.objects.listProperty(ScriptFileMapping::class.java)
+    val scripts: ListProperty<ScriptResource> = project.objects.listProperty(ScriptResource::class.java)
 
-    class ScriptFileMapping(
+    class ScriptResource(
+        @get:Internal val script: RawScript<Path>,
         @get:InputFile @get:PathSensitive(PathSensitivity.RELATIVE) val inputFile: File,
         @get:OutputFile val outputFile: File
     )
@@ -50,22 +53,21 @@ open class CompileKoremodsScriptsTask : DefaultTask() {
         val scriptRuntimeDepsConf = project.configurations.getByName(KoremodsGradlePlugin.SCRIPTING_RUNTIME_DEPS_CONFI6GURATION_NAME)
 
         val loadedURLs = scriptCompileDepsConf.resolve()
-            .plus(koremodsDep)
             .map { it.toURI().toURL() }
-            .plus(javaClass.protectionDomain.codeSource.location)
+            .plus(setOf(javaClass, KoremodsKtsScript::class.java)
+                .map { it.protectionDomain.codeSource.location })
             .toTypedArray()
-        val classloader = URLClassLoader(loadedURLs, ClassLoader.getSystemClassLoader())
+        val classloader = CompilerClassLoader(loadedURLs)
         val scriptLibraries = scriptRuntimeDepsConf.resolve() + koremodsDep
 
         val cls = classloader.loadClass("wtf.gofancy.koremods.compile.KoremodsScriptCompiler")
-        val compileMethod = MethodHandles.lookup().findStatic(cls, "compileScript", MethodType.methodType(Void::class.javaPrimitiveType, String::class.java, File::class.java, Collection::class.java))
+        val compileMethod = MethodHandles.lookup().findStatic(cls, "compileScriptPack", MethodType.methodType(Void::class.javaPrimitiveType, RawScript::class.java, File::class.java, Collection::class.java))
 
         project.logger.info("Compiling Koremods scripts")
 
-        filesMap.get().forEach { scriptFiles ->
-            val saveFile = scriptFiles.outputFile
-            val source = scriptFiles.inputFile.readText()
-            compileMethod.invoke(source, saveFile, scriptLibraries)
+        scripts.get().forEach { script ->
+            val saveFile = script.outputFile
+            compileMethod.invoke(script.script, saveFile, scriptLibraries)
         }
     }
 }
