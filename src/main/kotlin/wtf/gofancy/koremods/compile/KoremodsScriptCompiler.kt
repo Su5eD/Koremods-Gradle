@@ -52,7 +52,7 @@ fun compileScript(source: String, destFile: File, classPath: Collection<File>) {
 
     internalScriptingRunSuspend {
         val compiled = compiler(source.toScriptSource(), compileConf)
-        val compiledValue = compiled.valueOrThrow()
+        val compiledValue = compiled.valueOrThrow() // TODO
         val compiledScript = (compiledValue as? KJvmCompiledScript)
             ?: throw IllegalArgumentException("Unsupported compiled script type $compiledValue")
         compiledScript.saveScriptToJar(destFile)

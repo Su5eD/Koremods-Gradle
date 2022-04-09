@@ -29,21 +29,47 @@ import org.gradle.api.Project
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.language.jvm.tasks.ProcessResources
-import wtf.gofancy.koremods.KoremodModConfig
+import wtf.gofancy.koremods.KoremodsPackConfig
 import wtf.gofancy.koremods.parseConfig
 import wtf.gofancy.koremods.prelaunch.KoremodsBlackboard
+import java.util.*
 
 class KoremodsGradlePlugin : Plugin<Project> {
     companion object {
         const val KOREMODS_CONFIGURATION_NAME = "koremods"
         const val SCRIPT_EXTENSION = "core.kts"
+
+        const val SCRIPTING_COMPILE_DEPS_CONFIGURATION_NAME = "koremodsScriptingCompileDependencies"
+        const val SCRIPTING_RUNTIME_DEPS_CONFI6GURATION_NAME = "koremodsScriptingRuntimeDependencies"
+        
+        val KOTLIN_SCRIPT_DEPS = setOf(
+            "reflect",
+            "scripting-common",
+            "scripting-compiler-embeddable",
+            "scripting-jvm",
+            "scripting-jvm-host"
+        )
+        val ASM_DEPS = setOf("asm", "asm-analysis", "asm-commons", "asm-tree", "asm-util")
     }
 
     override fun apply(project: Project) {
+        val pluginProperties = Properties().also {
+            it.load(javaClass.getResourceAsStream("/koremods-gradle.properties"))
+        }
+        val kotlinVersion = pluginProperties["kotlinVersion"]
+        val asmVersion = pluginProperties["asmVersion"]
+        val scriptingCompileDeps = KOTLIN_SCRIPT_DEPS
+            .map { "org.jetbrains.kotlin:kotlin-$it:$kotlinVersion" }
+        val scriptingRuntimeDeps = ASM_DEPS
+            .map { "org.ow2.asm:$it:$asmVersion" }
+
         val koremodsImplementation = project.configurations.create(KOREMODS_CONFIGURATION_NAME)
         project.plugins.apply(JavaPlugin::class.java)
         project.configurations.named(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME)
             .configure { it.extendsFrom(koremodsImplementation) }
+
+        project.createConfigurationWithDependencies(SCRIPTING_COMPILE_DEPS_CONFIGURATION_NAME, scriptingCompileDeps)
+        project.createConfigurationWithDependencies(SCRIPTING_RUNTIME_DEPS_CONFI6GURATION_NAME, scriptingRuntimeDeps)
 
         val javaExt = project.extensions.getByType(JavaPluginExtension::class.java)
         javaExt.sourceSets.asSequence()
@@ -59,11 +85,11 @@ class KoremodsGradlePlugin : Plugin<Project> {
                 val outputDir = project.buildDir.resolve(taskName)
 
                 val preCompileTask = project.tasks.register(taskName, CompileKoremodsScriptsTask::class.java) { task ->
-                    parseConfig<KoremodModConfig>(configFile.reader()).scripts
+                    parseConfig<KoremodsPackConfig>(configFile.reader()).scripts
                         .forEach { script ->
                             val inputFile = resourceRoot.resolve(script)
                             val outputFile = outputDir.resolve(script.replace(SCRIPT_EXTENSION, "jar"))
-                            
+
                             task.filesMap.add(CompileKoremodsScriptsTask.ScriptFileMapping(inputFile, outputFile))
                         }
                 }
@@ -72,12 +98,19 @@ class KoremodsGradlePlugin : Plugin<Project> {
                     processResources.dependsOn(preCompileTask)
 
                     preCompileTask.get().run {
-                        filesMap.get().map(CompileKoremodsScriptsTask.ScriptFileMapping::inputFile).forEach { file -> 
+                        filesMap.get().map(CompileKoremodsScriptsTask.ScriptFileMapping::inputFile).forEach { file ->
                             processResources.exclude { it.file == file }
                         }
                         processResources.from(outputDir)
                     }
                 }
             }
+    }
+
+    private fun Project.createConfigurationWithDependencies(name: String, dependencies: Iterable<String>) {
+        project.configurations.create(name) { conf ->
+            conf.dependencies += dependencies
+                .map(project.dependencies::create)
+        }
     }
 }

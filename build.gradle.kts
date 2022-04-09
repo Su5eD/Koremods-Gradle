@@ -8,12 +8,14 @@ import java.util.*
 plugins {
     `java-gradle-plugin`
     `maven-publish`
-    kotlin("jvm") version "1.6.10"
+    kotlin("jvm")
     id("org.cadixdev.licenser") version "0.6.1"
     id("com.gradle.plugin-publish") version "0.14.0"
     id("fr.brouillard.oss.gradle.jgitver") version "0.10.+"
 }
 
+val kotlinVersion: String by project
+val asmVersion: String by project
 group = "wtf.gofancy.koremods"
 
 pluginBundle {
@@ -70,13 +72,22 @@ dependencies {
     implementation(kotlin("scripting-jvm"))
     implementation(kotlin("scripting-jvm-host"))
     
-    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.2")
+    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.5")
 
     testImplementation(group = "org.assertj", name = "assertj-core", version = "3.19.0")
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.7.1")
 }
 
 tasks {
+    processResources {
+        filesMatching("koremods-gradle.properties") {
+            expand(
+                "KOTLIN_VERSION" to kotlinVersion,
+                "ASM_VERSION" to asmVersion
+            )
+        }
+    }
+    
     withType<KotlinCompile> {
         kotlinOptions {
             jvmTarget = JavaVersion.VERSION_11.toString()
