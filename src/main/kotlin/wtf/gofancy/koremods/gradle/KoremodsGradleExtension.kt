@@ -24,12 +24,18 @@
 
 package wtf.gofancy.koremods.gradle
 
+import org.gradle.api.Project
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.SourceSet
+import javax.inject.Inject
 
-open class KoremodsGradleExtension {
+open class KoremodsGradleExtension @Inject constructor(project: Project) {
     companion object {
         const val EXTENSION_NAME = "koremods"
     }
+    
+    val scriptCompilerDaemon: Property<Boolean> = project.objects.property(Boolean::class.java)
+        .convention(false)
 
     internal val sourceSets: MutableSet<SourceSet> = mutableSetOf()
     

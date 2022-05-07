@@ -22,11 +22,14 @@
  * SOFTWARE.
  */
 
-@file:JvmName("KoremodsScriptCompiler")
+package wtf.gofancy.koremods.gradle
 
-package wtf.gofancy.koremods.compile
-
-import wtf.gofancy.koremods.RawScript
+import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.workers.WorkAction
+import org.gradle.workers.WorkParameters
+import wtf.gofancy.koremods.Identifier
 import wtf.gofancy.koremods.compileScriptResult
 import wtf.gofancy.koremods.readScriptSource
 import java.io.File
@@ -39,16 +42,26 @@ import kotlin.script.experimental.jvm.impl.*
 import kotlin.script.experimental.jvm.jvm
 import kotlin.script.experimental.jvm.updateClasspath
 
-@Suppress("UNUSED")
-fun compileScriptPack(script: RawScript<Path>, destFile: File, classPath: Collection<File>) {
-    val source = readScriptSource(script.identifier, script.source)
-    val compiled = compileScriptResult(script.identifier, source) {
-        jvm {
-            updateClasspath(classPath)
-        }
+abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScriptParameters> {
+    interface CompileScriptParameters : WorkParameters {
+        val identifier: Property<Identifier>
+        val scriptPath: Property<String>
+        val classPath: ConfigurableFileCollection
+        val destFile: RegularFileProperty
     }
-    val compiledScript = compiled as? KJvmCompiledScript ?: throw IllegalArgumentException("Unsupported compiled script type $compiled")
-    compiledScript.saveScriptToJar(destFile)
+
+    override fun execute() {
+        val identifier = parameters.identifier.get()
+        val path = parameters.scriptPath.map(Path::of).get()
+        val source = readScriptSource(identifier, path)
+        val compiled = compileScriptResult(identifier, source) {
+            jvm {
+                updateClasspath(parameters.classPath.files)
+            }
+        }
+        val compiledScript = compiled as? KJvmCompiledScript ?: throw IllegalArgumentException("Unsupported compiled script type $compiled")
+        compiledScript.saveScriptToJar(parameters.destFile.get().asFile)
+    }
 }
 
 fun KJvmCompiledScript.saveScriptToJar(outputJar: File) {

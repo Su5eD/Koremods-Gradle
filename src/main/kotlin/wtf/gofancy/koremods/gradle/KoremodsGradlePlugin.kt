@@ -26,7 +26,10 @@ package wtf.gofancy.koremods.gradle
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.artifacts.Configuration
+import org.gradle.api.attributes.AttributeCompatibilityRule
+import org.gradle.api.attributes.Category
+import org.gradle.api.attributes.CompatibilityCheckDetails
+import org.gradle.api.attributes.Usage
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.tasks.SourceSet
@@ -43,16 +46,10 @@ class KoremodsGradlePlugin : Plugin<Project> {
         const val KOREMODS_CONFIGURATION_NAME = "koremods"
         const val SCRIPT_EXTENSION = "core.kts"
 
-        const val SCRIPTING_COMPILE_DEPS_CONFIGURATION_NAME = "koremodsScriptingCompileDependencies"
-        const val SCRIPTING_RUNTIME_DEPS_CONFI6GURATION_NAME = "koremodsScriptingRuntimeDependencies"
+        const val SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME = "koremodsScriptCompilerClasspath"
+        const val SCRIPT_CLASSPATH_CONFIGURATION_NAME = "koremodsScriptClasspath"
+        const val SCRIPT_COMPILER_CLASSPATH_USAGE = "script-compiler-classpath"
 
-        val KOTLIN_SCRIPT_DEPS = setOf(
-            "reflect",
-            "scripting-common",
-            "scripting-compiler-embeddable",
-            "scripting-jvm",
-            "scripting-jvm-host"
-        )
         val ASM_DEPS = setOf("asm", "asm-analysis", "asm-commons", "asm-tree", "asm-util")
     }
 
@@ -62,43 +59,48 @@ class KoremodsGradlePlugin : Plugin<Project> {
         val pluginProperties = Properties().also {
             it.load(javaClass.getResourceAsStream("/koremods-gradle.properties"))
         }
-        val kotlinVersion = pluginProperties["kotlinVersion"]
         val asmVersion = pluginProperties["asmVersion"]
-        val scriptingCompileDeps = KOTLIN_SCRIPT_DEPS
-            .map { "org.jetbrains.kotlin:kotlin-$it:$kotlinVersion" }
         val scriptingRuntimeDeps = ASM_DEPS
             .map { "org.ow2.asm:$it:$asmVersion" }
 
-        val koremodsImplementation = project.configurations.create(KOREMODS_CONFIGURATION_NAME)
+        val koremodsImplementation = project.configurations.create(KOREMODS_CONFIGURATION_NAME) { conf ->
+            conf.attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.objects.named(Category::class.java, Category.LIBRARY))
+            conf.attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
+        }
+
         project.plugins.apply(JavaPlugin::class.java)
         project.configurations.named(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME)
             .configure { it.extendsFrom(koremodsImplementation) }
 
-        project.createConfigurationWithDependencies(SCRIPTING_COMPILE_DEPS_CONFIGURATION_NAME, scriptingCompileDeps) {
-            exclude(
-                mapOf(
-                    "group" to "org.jetbrains.kotlin",
-                    "module" to "kotlin-stdlib"
-                )
-            )
-            exclude(
-                mapOf(
-                    "group" to "org.jetbrains.kotlin",
-                    "module" to "kotlin-reflect"
-                )
-            )
+        project.configurations.create(SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME) { conf ->
+            conf.attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, SCRIPT_COMPILER_CLASSPATH_USAGE))
+
+            conf.extendsFrom(koremodsImplementation)
         }
-        project.createConfigurationWithDependencies(SCRIPTING_RUNTIME_DEPS_CONFI6GURATION_NAME, scriptingRuntimeDeps)
+
+        project.createConfigurationWithDependencies(SCRIPT_CLASSPATH_CONFIGURATION_NAME, scriptingRuntimeDeps)
+        
+        project.dependencies.attributesSchema.getMatchingStrategy(Usage.USAGE_ATTRIBUTE).compatibilityRules
+            .add(ScriptCompilerClasspathUsageCompatibilityRule::class.java)
 
         project.afterEvaluate { proj -> koremodsExtension.apply(proj) }
     }
+    
+    class ScriptCompilerClasspathUsageCompatibilityRule : AttributeCompatibilityRule<Usage> {
+        override fun execute(details: CompatibilityCheckDetails<Usage>) {
+            if (details.consumerValue != null &&details.producerValue != null
+                && details.consumerValue!!.name == SCRIPT_COMPILER_CLASSPATH_USAGE && details.producerValue!!.name == Usage.JAVA_RUNTIME) details.compatible()
+        }
+    }
 
-    private fun Project.createConfigurationWithDependencies(name: String, dependencies: Iterable<String>, action: Configuration.() -> Unit = {}) {
+    private fun Project.createConfigurationWithDependencies(name: String, dependencies: Iterable<String>) {
         project.configurations.create(name) { conf ->
             conf.dependencies += dependencies
                 .map(project.dependencies::create)
 
-            action(conf)
+            conf.isCanBeResolved = true
+            conf.isCanBeConsumed = false
+            conf.isVisible = false
         }
     }
 
@@ -115,17 +117,18 @@ class KoremodsGradlePlugin : Plugin<Project> {
     }
 
     private fun KoremodsGradleExtension.apply(project: Project) {
-        val sources = sourceSets.ifEmpty { 
+        val sources = sourceSets.ifEmpty {
             project.extensions.getByType(JavaPluginExtension::class.java).sourceSets
         }
-        
+
         locateScriptPacks(sources, sourceSets.isNotEmpty())
             .forEach { (sourceSet, scriptPack) ->
                 val taskName = sourceSet.getTaskName("compile", "koremodsScripts")
                 val outputDir = project.buildDir.resolve(taskName)
 
-                val preCompileTask = project.tasks.register(taskName, CompileKoremodsScriptsTask::class.java) { task ->
+                val compileScriptsTask = project.tasks.register(taskName, CompileKoremodsScriptsTask::class.java) { task ->
                     task.inputs.property("namespace", scriptPack.namespace)
+                    task.isolateProcess.set(scriptCompilerDaemon)
 
                     scriptPack.scripts.forEach { script ->
                         val inputFile = script.source.toFile()
@@ -137,9 +140,9 @@ class KoremodsGradlePlugin : Plugin<Project> {
                 }
 
                 project.tasks.named(sourceSet.processResourcesTaskName, ProcessResources::class.java) { processResources ->
-                    processResources.dependsOn(preCompileTask)
+                    processResources.dependsOn(compileScriptsTask)
 
-                    preCompileTask.get().run {
+                    compileScriptsTask.get().run {
                         scripts.get().map(CompileKoremodsScriptsTask.ScriptResource::inputFile).forEach { file ->
                             processResources.exclude { it.file == file }
                         }
