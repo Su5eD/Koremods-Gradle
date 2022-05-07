@@ -14,7 +14,6 @@ plugins {
     id("fr.brouillard.oss.gradle.jgitver") version "0.10.+"
 }
 
-val asmVersion: String by project
 group = "wtf.gofancy.koremods"
 
 pluginBundle {
@@ -80,12 +79,6 @@ dependencies {
 }
 
 tasks {
-    processResources {
-        filesMatching("koremods-gradle.properties") {
-            expand("ASM_VERSION" to asmVersion)
-        }
-    }
-    
     withType<KotlinCompile> {
         kotlinOptions {
             jvmTarget = JavaVersion.VERSION_11.toString()

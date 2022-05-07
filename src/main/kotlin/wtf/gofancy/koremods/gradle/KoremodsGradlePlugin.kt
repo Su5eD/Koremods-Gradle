@@ -37,7 +37,6 @@ import org.gradle.language.jvm.tasks.ProcessResources
 import wtf.gofancy.koremods.RawScriptPack
 import wtf.gofancy.koremods.scanPath
 import java.nio.file.Path
-import java.util.*
 import kotlin.io.path.pathString
 import kotlin.io.path.relativeTo
 
@@ -49,19 +48,10 @@ class KoremodsGradlePlugin : Plugin<Project> {
         const val SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME = "koremodsScriptCompilerClasspath"
         const val SCRIPT_CLASSPATH_CONFIGURATION_NAME = "koremodsScriptClasspath"
         const val SCRIPT_COMPILER_CLASSPATH_USAGE = "script-compiler-classpath"
-
-        val ASM_DEPS = setOf("asm", "asm-analysis", "asm-commons", "asm-tree", "asm-util")
     }
 
     override fun apply(project: Project) {
         val koremodsExtension = project.extensions.create(KoremodsGradleExtension.EXTENSION_NAME, KoremodsGradleExtension::class.java)
-
-        val pluginProperties = Properties().also {
-            it.load(javaClass.getResourceAsStream("/koremods-gradle.properties"))
-        }
-        val asmVersion = pluginProperties["asmVersion"]
-        val scriptingRuntimeDeps = ASM_DEPS
-            .map { "org.ow2.asm:$it:$asmVersion" }
 
         val koremodsImplementation = project.configurations.create(KOREMODS_CONFIGURATION_NAME) { conf ->
             conf.attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.objects.named(Category::class.java, Category.LIBRARY))
@@ -78,7 +68,11 @@ class KoremodsGradlePlugin : Plugin<Project> {
             conf.extendsFrom(koremodsImplementation)
         }
 
-        project.createConfigurationWithDependencies(SCRIPT_CLASSPATH_CONFIGURATION_NAME, scriptingRuntimeDeps)
+        project.configurations.create(SCRIPT_CLASSPATH_CONFIGURATION_NAME) { conf ->
+            conf.attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, Usage.JAVA_API))
+            
+            conf.extendsFrom(koremodsImplementation)
+        }
         
         project.dependencies.attributesSchema.getMatchingStrategy(Usage.USAGE_ATTRIBUTE).compatibilityRules
             .add(ScriptCompilerClasspathUsageCompatibilityRule::class.java)
@@ -90,17 +84,6 @@ class KoremodsGradlePlugin : Plugin<Project> {
         override fun execute(details: CompatibilityCheckDetails<Usage>) {
             if (details.consumerValue != null &&details.producerValue != null
                 && details.consumerValue!!.name == SCRIPT_COMPILER_CLASSPATH_USAGE && details.producerValue!!.name == Usage.JAVA_RUNTIME) details.compatible()
-        }
-    }
-
-    private fun Project.createConfigurationWithDependencies(name: String, dependencies: Iterable<String>) {
-        project.configurations.create(name) { conf ->
-            conf.dependencies += dependencies
-                .map(project.dependencies::create)
-
-            conf.isCanBeResolved = true
-            conf.isCanBeConsumed = false
-            conf.isVisible = false
         }
     }
 

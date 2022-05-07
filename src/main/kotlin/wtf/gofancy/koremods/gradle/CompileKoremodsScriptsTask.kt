@@ -63,14 +63,12 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
 
     @TaskAction
     fun apply() {
-        val koremodsConf = project.configurations.getByName(KoremodsGradlePlugin.KOREMODS_CONFIGURATION_NAME)
-        val koremodsDep = koremodsConf.singleFile
         val scriptCompilerClasspath = project.configurations.getByName(KoremodsGradlePlugin.SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME)
         val scriptClasspath = project.configurations.getByName(KoremodsGradlePlugin.SCRIPT_CLASSPATH_CONFIGURATION_NAME)
 
         val daemonClassPath = scriptCompilerClasspath.resolve()
             .plus(File(javaClass.protectionDomain.codeSource.location.toURI()))
-        val scriptLibraries = scriptClasspath.resolve() + koremodsDep
+        val scriptLibraries = scriptClasspath.resolve()
 
         project.logger.info("Compiling Koremods scripts")
         scripts.get().forEach { script ->
