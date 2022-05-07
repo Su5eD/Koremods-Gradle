@@ -32,6 +32,7 @@ import org.gradle.api.attributes.CompatibilityCheckDetails
 import org.gradle.api.attributes.Usage
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SourceSet
 import org.gradle.language.jvm.tasks.ProcessResources
 import wtf.gofancy.koremods.RawScriptPack
@@ -118,7 +119,8 @@ class KoremodsGradlePlugin : Plugin<Project> {
                         val relative = script.source.relativeTo(scriptPack.path).pathString
                         val outputFile = outputDir.resolve(relative.replace(SCRIPT_EXTENSION, "jar"))
 
-                        task.scripts.add(CompileKoremodsScriptsTask.ScriptResource(script, inputFile, outputFile))
+                        task.inputs.file(inputFile).withPathSensitivity(PathSensitivity.RELATIVE)
+                        task.scripts.add(ScriptResource(script.identifier, script.source.pathString, outputFile))
                     }
                 }
 
@@ -126,9 +128,7 @@ class KoremodsGradlePlugin : Plugin<Project> {
                     processResources.dependsOn(compileScriptsTask)
 
                     compileScriptsTask.get().run {
-                        scripts.get().map(CompileKoremodsScriptsTask.ScriptResource::inputFile).forEach { file ->
-                            processResources.exclude { it.file == file }
-                        }
+                        processResources.exclude { inputs.files.contains(it.file) }
                         processResources.from(outputDir)
                     }
                 }

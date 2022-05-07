@@ -25,42 +25,52 @@
 package wtf.gofancy.koremods.gradle
 
 import org.gradle.api.file.ConfigurableFileCollection
-import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.provider.Property
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.tasks.Nested
 import org.gradle.workers.WorkAction
 import org.gradle.workers.WorkParameters
-import wtf.gofancy.koremods.Identifier
 import wtf.gofancy.koremods.compileScriptResult
 import wtf.gofancy.koremods.readScriptSource
 import java.io.File
 import java.io.FileOutputStream
-import java.nio.file.Path
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
+import kotlin.io.path.Path
 import kotlin.script.experimental.jvm.impl.*
 import kotlin.script.experimental.jvm.jvm
 import kotlin.script.experimental.jvm.updateClasspath
 
 abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScriptParameters> {
     interface CompileScriptParameters : WorkParameters {
-        val identifier: Property<Identifier>
-        val scriptPath: Property<String>
+        @get:Nested
+        val scriptResources: ListProperty<ScriptResource>
         val classPath: ConfigurableFileCollection
-        val destFile: RegularFileProperty
     }
 
     override fun execute() {
-        val identifier = parameters.identifier.get()
-        val path = parameters.scriptPath.map(Path::of).get()
-        val source = readScriptSource(identifier, path)
-        val compiled = compileScriptResult(identifier, source) {
+        val threads = parameters.scriptResources.get().size
+        val executor = Executors.newFixedThreadPool(threads)
+
+        parameters.scriptResources.get().forEach { script ->
+            executor.submit { compileScript(script) }
+        }
+
+        executor.shutdown()
+        executor.awaitTermination(5, TimeUnit.SECONDS)
+    }
+
+    private fun compileScript(script: ScriptResource) {
+        val source = readScriptSource(script.identifier, Path(script.sourcePath))
+        val compiled = compileScriptResult(script.identifier, source) {
             jvm {
                 updateClasspath(parameters.classPath.files)
             }
         }
         val compiledScript = compiled as? KJvmCompiledScript ?: throw IllegalArgumentException("Unsupported compiled script type $compiled")
-        compiledScript.saveScriptToJar(parameters.destFile.get().asFile)
+        compiledScript.saveScriptToJar(script.outputFile)
     }
 }
 
