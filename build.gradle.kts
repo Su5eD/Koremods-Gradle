@@ -72,7 +72,7 @@ dependencies {
     implementation(kotlin("scripting-jvm"))
     implementation(kotlin("scripting-jvm-host"))
     
-    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.14")
+    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.15")
 
     testImplementation(group = "org.assertj", name = "assertj-core", version = "3.19.0")
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.7.1")

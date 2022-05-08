@@ -29,17 +29,29 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.SourceSet
 import javax.inject.Inject
 
+class WorkerDaemonOptions {
+    var maxHeapSize: String? = null
+}
+
+@Suppress("unused")
 open class KoremodsGradleExtension @Inject constructor(project: Project) {
     companion object {
         const val EXTENSION_NAME = "koremods"
     }
     
-    val scriptCompilerDaemon: Property<Boolean> = project.objects.property(Boolean::class.java)
-        .convention(false)
-
+    internal val scriptCompilerDaemon: Property<WorkerDaemonOptions> = project.objects.property(WorkerDaemonOptions::class.java)
     internal val sourceSets: MutableSet<SourceSet> = mutableSetOf()
     
     fun sources(vararg sources: SourceSet) {
         sourceSets += sources
+    }
+    
+    fun scriptCompilerDaemon() = scriptCompilerDaemon {}
+    
+    fun scriptCompilerDaemon(block: WorkerDaemonOptions.() -> Unit) {
+        val options = WorkerDaemonOptions()
+        block(options)
+        
+        scriptCompilerDaemon.set(options)
     }
 }

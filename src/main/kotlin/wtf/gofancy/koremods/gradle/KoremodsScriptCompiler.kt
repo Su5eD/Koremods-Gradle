@@ -26,7 +26,6 @@ package wtf.gofancy.koremods.gradle
 
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.provider.ListProperty
-import org.gradle.api.tasks.Nested
 import org.gradle.workers.WorkAction
 import org.gradle.workers.WorkParameters
 import wtf.gofancy.koremods.compileScriptResult
@@ -39,14 +38,16 @@ import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
 import kotlin.io.path.Path
+import kotlin.script.experimental.api.ScriptCompilationConfiguration
+import kotlin.script.experimental.api.dependencies
 import kotlin.script.experimental.jvm.impl.*
 import kotlin.script.experimental.jvm.jvm
 import kotlin.script.experimental.jvm.updateClasspath
+import kotlin.script.experimental.util.PropertiesCollection
 
 abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScriptParameters> {
     interface CompileScriptParameters : WorkParameters {
-        @get:Nested
-        val scriptResources: ListProperty<ScriptResource>
+        val scriptResources: ListProperty<CompilableScript>
         val classPath: ConfigurableFileCollection
     }
 
@@ -62,7 +63,7 @@ abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScrip
         executor.awaitTermination(5, TimeUnit.SECONDS)
     }
 
-    private fun compileScript(script: ScriptResource) {
+    private fun compileScript(script: CompilableScript) {
         val source = readScriptSource(script.identifier, Path(script.sourcePath))
         val compiled = compileScriptResult(script.identifier, source) {
             jvm {
@@ -89,7 +90,10 @@ fun KJvmCompiledScript.saveScriptToJar(outputJar: File) {
 
         JarOutputStream(fileStream, manifest).use { jar ->
             jar.putNextEntry(JarEntry(scriptMetadataPath(scriptClassFQName)))
-            jar.write(copyWithoutModule().toBytes())
+            val scriptWithoutModule = copyWithoutModule()
+            (scriptWithoutModule.compilationConfiguration.entries() as MutableSet<Map.Entry<PropertiesCollection.Key<*>, Any?>>)
+                .removeIf { it.key == ScriptCompilationConfiguration.dependencies }
+            jar.write(scriptWithoutModule.toBytes())
             jar.closeEntry()
 
             module.compilerOutputFiles.forEach { (path, bytes) ->

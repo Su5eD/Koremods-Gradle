@@ -26,24 +26,34 @@ package wtf.gofancy.koremods.gradle
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.provider.ListProperty
-import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
 import org.gradle.initialization.ClassLoaderRegistry
 import org.gradle.internal.classloader.FilteringClassLoader
 import org.gradle.internal.classloader.VisitableURLClassLoader
 import org.gradle.internal.classpath.DefaultClassPath
 import org.gradle.process.internal.JavaForkOptionsFactory
+import org.gradle.work.Incremental
 import org.gradle.workers.internal.*
 import wtf.gofancy.koremods.Identifier
 import java.io.File
 import java.io.Serializable
 import javax.inject.Inject
+import kotlin.io.path.pathString
 
 class ScriptResource(
-    @get:Internal val identifier: Identifier,
-    @get:Internal val sourcePath: String,
-    @get:OutputFile val outputFile: File
+    @get:Internal
+    val identifier: Identifier,
+    
+    @get:Incremental
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    val inputFile: File,
+    
+    @get:OutputFile
+    val outputFile: File
 ) : Serializable
+
+data class CompilableScript(val identifier: Identifier, val sourcePath: String, val outputFile: File) : Serializable
 
 @CacheableTask
 abstract class CompileKoremodsScriptsTask @Inject constructor(
@@ -56,8 +66,7 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
     @get:Nested
     abstract val scripts: ListProperty<ScriptResource>
 
-    @get:Input
-    abstract val isolateProcess: Property<Boolean>
+    private val koremodsExtension: KoremodsGradleExtension = project.extensions.getByType(KoremodsGradleExtension::class.java)
 
     @TaskAction
     fun apply() {
@@ -70,14 +79,14 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
 
         project.logger.info("Compiling Koremods scripts")
         val params = project.objects.newInstance(CompileScriptAction.CompileScriptParameters::class.java).apply { 
-            scriptResources.set(scripts)
+            scriptResources.set(scripts.get().map { CompilableScript(it.identifier, it.inputFile.toPath().pathString, it.outputFile) })
             classPath.from(scriptLibraries)
         }
         submitWork(daemonClassPath, params)
     }
 
     private fun submitWork(classpath: Collection<File>, parameters: CompileScriptAction.CompileScriptParameters?) {
-        val workerFactory = if (isolateProcess.get()) workerDaemonFactory else isolatedClassloaderWorkerFactory
+        val workerFactory = if (koremodsExtension.scriptCompilerDaemon.isPresent) workerDaemonFactory else isolatedClassloaderWorkerFactory
         val workerRequirement = getWorkerRequirement(workerFactory.isolationMode, classpath)
         val worker = workerFactory.getWorker(workerRequirement)
 
@@ -87,13 +96,24 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
         }
     }
 
+    private fun getWorkerRequirement(isolationMode: IsolationMode, classpath: Collection<File>): WorkerRequirement {
+        val daemonForkOptions = toDaemonForkOptions(classpath)
+        return when (isolationMode) {
+            IsolationMode.CLASSLOADER -> IsolatedClassLoaderWorkerRequirement(daemonForkOptions.javaForkOptions.workingDir, daemonForkOptions.classLoaderStructure)
+            IsolationMode.PROCESS -> ForkedWorkerRequirement(daemonForkOptions.javaForkOptions.workingDir, daemonForkOptions)
+            else -> throw IllegalArgumentException("Received worker with unsupported isolation mode: $isolationMode")
+        }
+    }
+
     private fun toDaemonForkOptions(classpath: Collection<File>): DaemonForkOptions {
         val classLoaderStructure = HierarchicalClassLoaderStructure(classLoaderRegistry.gradleWorkerExtensionSpec)
             .withChild(getKotlinFilterSpec())
             .withChild(VisitableURLClassLoader.Spec("worker-loader", DefaultClassPath.of(classpath).asURLs))
 
-        val javaForkOptions = forkOptionsFactory.newJavaForkOptions()
-        javaForkOptions.maxHeapSize = "1G" // TODO Configurable
+        val extensionOptions = koremodsExtension.scriptCompilerDaemon.orNull
+        val javaForkOptions = forkOptionsFactory.newJavaForkOptions().apply {
+            maxHeapSize = extensionOptions?.maxHeapSize ?: "256M"
+        }
 
         return DaemonForkOptionsBuilder(forkOptionsFactory)
             .javaForkOptions(javaForkOptions)
@@ -105,15 +125,6 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
     private fun getKotlinFilterSpec(): FilteringClassLoader.Spec {
         return classLoaderRegistry.gradleApiFilterSpec.apply {
             disallowPackage("kotlin")
-        }
-    }
-
-    private fun getWorkerRequirement(isolationMode: IsolationMode, classpath: Collection<File>): WorkerRequirement {
-        val daemonForkOptions = toDaemonForkOptions(classpath)
-        return when (isolationMode) {
-            IsolationMode.CLASSLOADER -> IsolatedClassLoaderWorkerRequirement(daemonForkOptions.javaForkOptions.workingDir, daemonForkOptions.classLoaderStructure)
-            IsolationMode.PROCESS -> ForkedWorkerRequirement(daemonForkOptions.javaForkOptions.workingDir, daemonForkOptions)
-            else -> throw IllegalArgumentException("Received worker with unsupported isolation mode: $isolationMode")
         }
     }
 }
