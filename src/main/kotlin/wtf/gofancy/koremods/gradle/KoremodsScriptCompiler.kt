@@ -28,22 +28,29 @@ import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.provider.ListProperty
 import org.gradle.workers.WorkAction
 import org.gradle.workers.WorkParameters
+import wtf.gofancy.koremods.Identifier
 import wtf.gofancy.koremods.compileScriptResult
 import wtf.gofancy.koremods.readScriptSource
 import java.io.File
 import java.io.FileOutputStream
+import java.io.Serializable
+import java.lang.invoke.MethodHandles
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
 import kotlin.io.path.Path
 import kotlin.script.experimental.api.ScriptCompilationConfiguration
+import kotlin.script.experimental.api.defaultImports
 import kotlin.script.experimental.api.dependencies
 import kotlin.script.experimental.jvm.impl.*
 import kotlin.script.experimental.jvm.jvm
 import kotlin.script.experimental.jvm.updateClasspath
 import kotlin.script.experimental.util.PropertiesCollection
+
+data class CompilableScript(val identifier: Identifier, val sourcePath: String, val outputFile: File) : Serializable
 
 abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScriptParameters> {
     interface CompileScriptParameters : WorkParameters {
@@ -55,12 +62,14 @@ abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScrip
         val threads = parameters.scriptResources.get().size
         val executor = Executors.newFixedThreadPool(threads)
 
-        parameters.scriptResources.get().forEach { script ->
+        val futures = parameters.scriptResources.get().map { script ->
             executor.submit { compileScript(script) }
         }
 
         executor.shutdown()
         executor.awaitTermination(5, TimeUnit.SECONDS)
+
+        futures.forEach(Future<*>::get) // Exception handling
     }
 
     private fun compileScript(script: CompilableScript) {
@@ -90,10 +99,7 @@ fun KJvmCompiledScript.saveScriptToJar(outputJar: File) {
 
         JarOutputStream(fileStream, manifest).use { jar ->
             jar.putNextEntry(JarEntry(scriptMetadataPath(scriptClassFQName)))
-            val scriptWithoutModule = copyWithoutModule()
-            (scriptWithoutModule.compilationConfiguration.entries() as MutableSet<Map.Entry<PropertiesCollection.Key<*>, Any?>>)
-                .removeIf { it.key == ScriptCompilationConfiguration.dependencies }
-            jar.write(scriptWithoutModule.toBytes())
+            jar.write(copyWithoutModule().apply(::shrinkSerializableScriptData).toBytes())
             jar.closeEntry()
 
             module.compilerOutputFiles.forEach { (path, bytes) ->
@@ -107,4 +113,17 @@ fun KJvmCompiledScript.saveScriptToJar(outputJar: File) {
         }
         fileStream.flush()
     }
+}
+
+private val lookup = MethodHandles.lookup()
+private val compiledScriptDataClass = Class.forName("kotlin.script.experimental.jvm.impl.KJvmCompiledScriptData")
+private val scriptDataGetter = MethodHandles.privateLookupIn(KJvmCompiledScript::class.java, lookup).findGetter(KJvmCompiledScript::class.java, "data", compiledScriptDataClass)
+private val sourceLocationIdSetter = MethodHandles.privateLookupIn(compiledScriptDataClass, lookup).findSetter(compiledScriptDataClass, "sourceLocationId", String::class.java)
+
+private fun shrinkSerializableScriptData(compiledScript: KJvmCompiledScript) {
+    (compiledScript.compilationConfiguration.entries() as? MutableSet<Map.Entry<PropertiesCollection.Key<*>, Any?>>)
+        ?.removeIf { it.key == ScriptCompilationConfiguration.dependencies || it.key == ScriptCompilationConfiguration.defaultImports }
+
+    val scriptData = scriptDataGetter.invoke(compiledScript)
+    sourceLocationIdSetter.invoke(scriptData, null)
 }

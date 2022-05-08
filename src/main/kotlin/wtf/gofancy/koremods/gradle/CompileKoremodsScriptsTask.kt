@@ -25,14 +25,17 @@
 package wtf.gofancy.koremods.gradle
 
 import org.gradle.api.DefaultTask
-import org.gradle.api.provider.ListProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
 import org.gradle.initialization.ClassLoaderRegistry
+import org.gradle.internal.UncheckedException
 import org.gradle.internal.classloader.FilteringClassLoader
 import org.gradle.internal.classloader.VisitableURLClassLoader
 import org.gradle.internal.classpath.DefaultClassPath
 import org.gradle.process.internal.JavaForkOptionsFactory
 import org.gradle.work.Incremental
+import org.gradle.work.InputChanges
 import org.gradle.workers.internal.*
 import wtf.gofancy.koremods.Identifier
 import java.io.File
@@ -40,20 +43,18 @@ import java.io.Serializable
 import javax.inject.Inject
 import kotlin.io.path.pathString
 
-class ScriptResource(
+interface ScriptResource : Serializable {
     @get:Internal
-    val identifier: Identifier,
-    
+    val identifier: Property<Identifier>
+
     @get:Incremental
     @get:InputFile
     @get:PathSensitive(PathSensitivity.RELATIVE)
-    val inputFile: File,
-    
-    @get:OutputFile
-    val outputFile: File
-) : Serializable
+    val inputFile: RegularFileProperty
 
-data class CompilableScript(val identifier: Identifier, val sourcePath: String, val outputFile: File) : Serializable
+    @get:OutputFile
+    val outputFile: RegularFileProperty
+}
 
 @CacheableTask
 abstract class CompileKoremodsScriptsTask @Inject constructor(
@@ -64,22 +65,37 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
     private val forkOptionsFactory: JavaForkOptionsFactory
 ) : DefaultTask() {
     @get:Nested
-    abstract val scripts: ListProperty<ScriptResource>
+    val scripts: List<ScriptResource>
+        get() = scriptsInternal
 
+    private val scriptsInternal: MutableList<ScriptResource> = mutableListOf()
     private val koremodsExtension: KoremodsGradleExtension = project.extensions.getByType(KoremodsGradleExtension::class.java)
 
-    @TaskAction
-    fun apply() {
-        val scriptCompilerClasspath = project.configurations.getByName(KoremodsGradlePlugin.SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME)
-        val scriptClasspath = project.configurations.getByName(KoremodsGradlePlugin.SCRIPT_CLASSPATH_CONFIGURATION_NAME)
+    fun script(identifier: Identifier, inputFile: File, outputFile: File) {
+        scriptsInternal += project.objects.newInstance(ScriptResource::class.java).also { resource ->
+            resource.identifier.set(identifier)
+            resource.inputFile.set(inputFile)
+            resource.outputFile.set(outputFile)
+        }
+    }
 
-        val daemonClassPath = scriptCompilerClasspath.resolve()
-            .plus(File(javaClass.protectionDomain.codeSource.location.toURI()))
-        val scriptLibraries = scriptClasspath.resolve()
+    @TaskAction
+    fun apply(inputChanges: InputChanges) {
+        val scriptCompilerClasspathConf = project.configurations.getByName(KoremodsGradlePlugin.SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME)
+        val scriptClasspathConf = project.configurations.getByName(KoremodsGradlePlugin.SCRIPT_CLASSPATH_CONFIGURATION_NAME)
+        val daemonClassPath = scriptCompilerClasspathConf.resolve() + File(javaClass.protectionDomain.codeSource.location.toURI())
+        val scriptLibraries = scriptClasspathConf.resolve()
 
         project.logger.info("Compiling Koremods scripts")
-        val params = project.objects.newInstance(CompileScriptAction.CompileScriptParameters::class.java).apply { 
-            scriptResources.set(scripts.get().map { CompilableScript(it.identifier, it.inputFile.toPath().pathString, it.outputFile) })
+
+        val candidateScripts = scripts.filter { script ->
+            inputChanges.getFileChanges(script.inputFile).any()
+        }
+        val params = project.objects.newInstance(CompileScriptAction.CompileScriptParameters::class.java).apply {
+            val candidateCompilableScripts = candidateScripts.map { script ->
+                CompilableScript(script.identifier.get(), script.inputFile.asFile.map { it.toPath().pathString }.get(), script.outputFile.get().asFile)
+            }
+            scriptResources.set(candidateCompilableScripts)
             classPath.from(scriptLibraries)
         }
         submitWork(daemonClassPath, params)
@@ -92,7 +108,7 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
 
         val result = worker.execute(actionExecutionSpecFactory.newIsolatedSpec("koremods script compiler daemon", CompileScriptAction::class.java, parameters, workerRequirement, true))
         if (!result.isSuccess) {
-            throw RuntimeException("Failed to compile scripts", result.exception)
+            throw UncheckedException.throwAsUncheckedException(result.exception!!)
         }
     }
 

@@ -26,24 +26,16 @@ package wtf.gofancy.koremods.gradle
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.attributes.AttributeCompatibilityRule
 import org.gradle.api.attributes.Category
 import org.gradle.api.attributes.CompatibilityCheckDetails
 import org.gradle.api.attributes.Usage
 import org.gradle.api.plugins.JavaPlugin
-import org.gradle.api.plugins.JavaPluginExtension
-import org.gradle.api.tasks.SourceSet
-import org.gradle.language.jvm.tasks.ProcessResources
-import wtf.gofancy.koremods.RawScriptPack
-import wtf.gofancy.koremods.scanPath
-import java.nio.file.Path
-import kotlin.io.path.pathString
-import kotlin.io.path.relativeTo
 
 class KoremodsGradlePlugin : Plugin<Project> {
     companion object {
         const val KOREMODS_CONFIGURATION_NAME = "koremods"
-        const val SCRIPT_EXTENSION = "core.kts"
 
         const val SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME = "koremodsScriptCompilerClasspath"
         const val SCRIPT_CLASSPATH_CONFIGURATION_NAME = "koremodsScriptClasspath"
@@ -52,7 +44,6 @@ class KoremodsGradlePlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
         val koremodsExtension = project.extensions.create(KoremodsGradleExtension.EXTENSION_NAME, KoremodsGradleExtension::class.java)
-
         val koremodsImplementation = project.configurations.create(KOREMODS_CONFIGURATION_NAME) { conf ->
             conf.attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.objects.named(Category::class.java, Category.LIBRARY))
             conf.attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
@@ -60,75 +51,30 @@ class KoremodsGradlePlugin : Plugin<Project> {
 
         project.plugins.apply(JavaPlugin::class.java)
         project.configurations.named(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME)
-            .configure { it.extendsFrom(koremodsImplementation) }
+            .configure { conf -> conf.extendsFrom(koremodsImplementation) }
 
-        project.configurations.create(SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME) { conf ->
-            conf.attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, SCRIPT_COMPILER_CLASSPATH_USAGE))
+        project.createUsageConfiguration(SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME, SCRIPT_COMPILER_CLASSPATH_USAGE, koremodsImplementation)
+        project.createUsageConfiguration(SCRIPT_CLASSPATH_CONFIGURATION_NAME, Usage.JAVA_API, koremodsImplementation)
 
-            conf.extendsFrom(koremodsImplementation)
-        }
-
-        project.configurations.create(SCRIPT_CLASSPATH_CONFIGURATION_NAME) { conf ->
-            conf.attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, Usage.JAVA_API))
-            
-            conf.extendsFrom(koremodsImplementation)
-        }
-        
         project.dependencies.attributesSchema.getMatchingStrategy(Usage.USAGE_ATTRIBUTE).compatibilityRules
             .add(ScriptCompilerClasspathUsageCompatibilityRule::class.java)
 
-        project.afterEvaluate { proj -> koremodsExtension.apply(proj) }
-    }
-    
-    class ScriptCompilerClasspathUsageCompatibilityRule : AttributeCompatibilityRule<Usage> {
-        override fun execute(details: CompatibilityCheckDetails<Usage>) {
-            if (details.consumerValue != null &&details.producerValue != null
-                && details.consumerValue!!.name == SCRIPT_COMPILER_CLASSPATH_USAGE && details.producerValue!!.name == Usage.JAVA_RUNTIME) details.compatible()
-        }
+        project.afterEvaluate(koremodsExtension::apply)
     }
 
-    private fun locateScriptPacks(sourceSets: Iterable<SourceSet>, strict: Boolean): List<Pair<SourceSet, RawScriptPack<Path>>> {
-        return sourceSets.mapNotNull { sourceSet ->
-            sourceSet.resources.srcDirs.firstNotNullOfOrNull locatePack@{ resourceRoot ->
-                val scriptPack = scanPath(resourceRoot.toPath())
-                if (scriptPack == null && strict) {
-                    throw RuntimeException("Expected source set '${sourceSet.name}' to contain a koremods script pack, but it could not be found")
-                }
-                return@locatePack scriptPack?.let { Pair(sourceSet, it) }
-            }
+    private fun Project.createUsageConfiguration(name: String, usage: String, parent: Configuration) {
+        configurations.create(name) { conf ->
+            conf.attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, usage))
+
+            conf.extendsFrom(parent)
         }
     }
+}
 
-    private fun KoremodsGradleExtension.apply(project: Project) {
-        val sources = sourceSets.ifEmpty {
-            project.extensions.getByType(JavaPluginExtension::class.java).sourceSets
-        }
-
-        locateScriptPacks(sources, sourceSets.isNotEmpty())
-            .forEach { (sourceSet, scriptPack) ->
-                val taskName = sourceSet.getTaskName("compile", "koremodsScripts")
-                val outputDir = project.buildDir.resolve(taskName)
-
-                val compileScriptsTask = project.tasks.register(taskName, CompileKoremodsScriptsTask::class.java) { task ->
-                    task.inputs.property("namespace", scriptPack.namespace)
-
-                    scriptPack.scripts.forEach { script ->
-                        val inputFile = script.source.toFile()
-                        val relative = script.source.relativeTo(scriptPack.path).pathString
-                        val outputFile = outputDir.resolve(relative.replace(SCRIPT_EXTENSION, "jar"))
-
-                        task.scripts.add(ScriptResource(script.identifier, inputFile, outputFile))
-                    }
-                }
-
-                project.tasks.named(sourceSet.processResourcesTaskName, ProcessResources::class.java) { processResources ->
-                    processResources.dependsOn(compileScriptsTask)
-
-                    compileScriptsTask.get().run {
-                        processResources.exclude { inputs.files.contains(it.file) }
-                        processResources.from(outputDir)
-                    }
-                }
-            }
+private class ScriptCompilerClasspathUsageCompatibilityRule : AttributeCompatibilityRule<Usage> {
+    override fun execute(details: CompatibilityCheckDetails<Usage>) {
+        if (details.consumerValue != null && details.producerValue != null
+            && details.consumerValue!!.name == KoremodsGradlePlugin.SCRIPT_COMPILER_CLASSPATH_USAGE && details.producerValue!!.name == Usage.JAVA_RUNTIME
+        ) details.compatible()
     }
 }
