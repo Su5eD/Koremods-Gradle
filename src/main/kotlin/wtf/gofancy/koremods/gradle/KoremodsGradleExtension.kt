@@ -33,31 +33,32 @@ import wtf.gofancy.koremods.RawScriptPack
 import wtf.gofancy.koremods.scanPath
 import wtf.gofancy.koremods.script.KOREMODS_SCRIPT_EXTENSION
 import java.nio.file.Path
+import javax.inject.Inject
 import kotlin.io.path.pathString
 import kotlin.io.path.relativeTo
 
 data class WorkerDaemonOptions(var maxHeapSize: String? = null)
 
 @Suppress("unused")
-abstract class KoremodsGradleExtension {
+open class KoremodsGradleExtension @Inject constructor(project: Project) {
     companion object {
         const val EXTENSION_NAME = "koremods"
     }
 
-    internal abstract val scriptCompilerDaemon: Property<WorkerDaemonOptions>
+    val useWorkerDaemon: Property<Boolean> = project.objects.property(Boolean::class.java)
+        .convention(true)
+    val workerDaemonOptions: Property<WorkerDaemonOptions> = project.objects.property(WorkerDaemonOptions::class.java)
+        .convention(project.provider { WorkerDaemonOptions("256M") })
     private val sourceSets: MutableSet<SourceSet> = mutableSetOf()
 
     fun sources(vararg sources: SourceSet) {
         sourceSets += sources
     }
 
-    fun scriptCompilerDaemon() = scriptCompilerDaemon {}
-
-    fun scriptCompilerDaemon(block: WorkerDaemonOptions.() -> Unit) {
+    fun workerDaemonOptions(block: WorkerDaemonOptions.() -> Unit) {
         val options = WorkerDaemonOptions()
         block(options)
-
-        scriptCompilerDaemon.set(options)
+        workerDaemonOptions.set(options)
     }
 
     internal fun apply(project: Project) {

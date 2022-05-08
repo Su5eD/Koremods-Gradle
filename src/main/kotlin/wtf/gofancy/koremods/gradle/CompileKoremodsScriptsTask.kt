@@ -102,7 +102,7 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
     }
 
     private fun submitWork(classpath: Collection<File>, parameters: CompileScriptAction.CompileScriptParameters?) {
-        val workerFactory = if (koremodsExtension.scriptCompilerDaemon.isPresent) workerDaemonFactory else isolatedClassloaderWorkerFactory
+        val workerFactory = if (koremodsExtension.useWorkerDaemon.get()) workerDaemonFactory else isolatedClassloaderWorkerFactory
         val workerRequirement = getWorkerRequirement(workerFactory.isolationMode, classpath)
         val worker = workerFactory.getWorker(workerRequirement)
 
@@ -126,9 +126,9 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
             .withChild(getKotlinFilterSpec())
             .withChild(VisitableURLClassLoader.Spec("worker-loader", DefaultClassPath.of(classpath).asURLs))
 
-        val extensionOptions = koremodsExtension.scriptCompilerDaemon.orNull
+        val extensionOptions = koremodsExtension.workerDaemonOptions.get()
         val javaForkOptions = forkOptionsFactory.newJavaForkOptions().apply {
-            maxHeapSize = extensionOptions?.maxHeapSize ?: "256M"
+            maxHeapSize = extensionOptions.maxHeapSize
         }
 
         return DaemonForkOptionsBuilder(forkOptionsFactory)
