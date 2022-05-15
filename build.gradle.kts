@@ -25,7 +25,7 @@ pluginBundle {
 gradlePlugin {
     plugins {
         create("koremods-gradle") {
-            id = "wtf.gofancy.koremods.koremods-gradle"
+            id = "wtf.gofancy.koremods.gradle"
             displayName = "Koremods Gradle"
             description = "A Gradle plugin for pre-compiling Koremods scripts"
             implementationClass = "wtf.gofancy.koremods.gradle.KoremodsGradlePlugin"
