@@ -72,6 +72,7 @@ dependencies {
     implementation(kotlin("scripting-jvm"))
     implementation(kotlin("scripting-jvm-host"))
     
+    implementation(group = "net.minecraftforge.gradle", name = "ForgeGradle", version = "5.1.+")
     implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.15")
 
     testImplementation(group = "org.assertj", name = "assertj-core", version = "3.19.0")

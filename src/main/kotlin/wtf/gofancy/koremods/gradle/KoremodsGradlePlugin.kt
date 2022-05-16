@@ -24,6 +24,7 @@
 
 package wtf.gofancy.koremods.gradle
 
+import net.minecraftforge.gradle.common.util.MinecraftExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
@@ -32,6 +33,7 @@ import org.gradle.api.attributes.Category
 import org.gradle.api.attributes.CompatibilityCheckDetails
 import org.gradle.api.attributes.Usage
 import org.gradle.api.plugins.JavaPlugin
+import java.io.File
 
 class KoremodsGradlePlugin : Plugin<Project> {
     companion object {
@@ -40,6 +42,8 @@ class KoremodsGradlePlugin : Plugin<Project> {
         const val SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME = "koremodsScriptCompilerClasspath"
         const val SCRIPT_CLASSPATH_CONFIGURATION_NAME = "koremodsScriptClasspath"
         const val SCRIPT_COMPILER_CLASSPATH_USAGE = "script-compiler-classpath"
+        
+        const val MINECRAFT_CLASSPATH_TOKEN = "minecraft_classpath"
     }
 
     override fun apply(project: Project) {
@@ -59,7 +63,27 @@ class KoremodsGradlePlugin : Plugin<Project> {
         project.dependencies.attributesSchema.getMatchingStrategy(Usage.USAGE_ATTRIBUTE).compatibilityRules
             .add(ScriptCompilerClasspathUsageCompatibilityRule::class.java)
 
-        project.afterEvaluate(koremodsExtension::apply)
+        project.afterEvaluate { proj ->
+            koremodsExtension.apply(proj)
+            
+            proj.minecraftExtension?.apply {
+                val koremodsClassPath: () -> String = {
+                    koremodsImplementation.copyRecursive()
+                        .resolve()
+                        .joinToString(separator = File.pathSeparator, transform = File::getAbsolutePath)
+                }
+                
+                runs.all { run -> 
+                    val oldClassPath = run.lazyTokens[MINECRAFT_CLASSPATH_TOKEN]
+                    run.lazyToken(MINECRAFT_CLASSPATH_TOKEN) {
+                        val classPath = koremodsClassPath()
+                        
+                        if (oldClassPath != null) "${oldClassPath.get()}${File.pathSeparator}$classPath"
+                        else classPath
+                    }
+                }
+            }
+        }
     }
 
     private fun Project.createUsageConfiguration(name: String, usage: String, parent: Configuration) {
@@ -70,6 +94,9 @@ class KoremodsGradlePlugin : Plugin<Project> {
         }
     }
 }
+
+internal val Project.minecraftExtension: MinecraftExtension?
+    get() = extensions.findByType(MinecraftExtension::class.java)
 
 private class ScriptCompilerClasspathUsageCompatibilityRule : AttributeCompatibilityRule<Usage> {
     override fun execute(details: CompatibilityCheckDetails<Usage>) {
