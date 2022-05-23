@@ -60,6 +60,7 @@ jgitver {
 repositories {
     mavenCentral()
     maven("https://su5ed.jfrog.io/artifactory/maven")
+    maven("https://maven.minecraftforge.net")
     mavenLocal()
 }
 
@@ -73,7 +74,7 @@ dependencies {
     implementation(kotlin("scripting-jvm-host"))
     
     implementation(group = "net.minecraftforge.gradle", name = "ForgeGradle", version = "5.1.+")
-    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.15")
+    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.21")
 
     testImplementation(group = "org.assertj", name = "assertj-core", version = "3.19.0")
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.7.1")
@@ -111,5 +112,24 @@ tasks {
     wrapper {
         gradleVersion = "7.4"
         distributionType = Wrapper.DistributionType.ALL
+    }
+}
+
+publishing {
+    repositories {
+        val mavenUser = System.getenv("GOFANCY_MAVEN_USER")
+        val mavenToken = System.getenv("GOFANCY_MAVEN_TOKEN")
+        
+        if (mavenUser != null && mavenToken != null) {
+            maven {
+                name = "gofancy"
+                url = uri("https://maven.gofancy.wtf/releases")
+
+                credentials {
+                    username = mavenUser
+                    password = mavenToken
+                }
+            }
+        }
     }
 }
