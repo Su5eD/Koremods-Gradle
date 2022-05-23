@@ -59,9 +59,18 @@ jgitver {
 
 repositories {
     mavenCentral()
-    maven("https://su5ed.jfrog.io/artifactory/maven")
-    maven("https://maven.minecraftforge.net")
-    mavenLocal()
+    maven { 
+        name = "Su5eD Artifactory"
+        url = uri("https://su5ed.jfrog.io/artifactory/maven")
+    }
+    maven {
+        name = "Garden of Fancy"
+        url = uri("https://maven.gofancy.wtf/releases")
+    }
+    maven {
+        name = "MinecraftForge"
+        url = uri("https://maven.minecraftforge.net")
+    }
 }
 
 dependencies {
