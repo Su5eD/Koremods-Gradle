@@ -1,9 +1,16 @@
-import fr.brouillard.oss.gradle.plugins.JGitverPluginExtensionBranchPolicy
+import fr.brouillard.oss.jgitver.GitVersionCalculator
 import fr.brouillard.oss.jgitver.Strategies
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.*
+
+buildscript {
+    dependencies {
+        // TODO look for alternatives
+        classpath(group = "fr.brouillard.oss", name = "jgitver", version = "0.14.0")
+    }
+}
 
 plugins {
     `java-gradle-plugin`
@@ -15,6 +22,7 @@ plugins {
 }
 
 group = "wtf.gofancy.koremods"
+version = getGitVersion()
 
 pluginBundle {
     website = "https://gitlab.com/gofancy/koremods"
@@ -45,16 +53,6 @@ license {
     ext["app"] = "Koremods Gradle"
     
     include("**/**.kt")
-}
-
-jgitver {
-    strategy = Strategies.PATTERN
-    versionPattern = "\${M}\${<m}\${<meta.COMMIT_DISTANCE}\${-~meta.QUALIFIED_BRANCH_NAME}"
-
-    policies.add(JGitverPluginExtensionBranchPolicy().apply { 
-        pattern = "(^master\$)|(dev\\/.*)"
-        transformations = listOf("IGNORE")
-    })
 }
 
 repositories {
@@ -141,4 +139,12 @@ publishing {
             }
         }
     }
+}
+
+fun getGitVersion(): String {
+    val jgitver = GitVersionCalculator.location(rootDir)
+        .setNonQualifierBranches("master")
+        .setStrategy(Strategies.SCRIPT)
+        .setScript("print \"\${metadata.CURRENT_VERSION_MAJOR};\${metadata.CURRENT_VERSION_MINOR};\${metadata.CURRENT_VERSION_PATCH + metadata.COMMIT_DISTANCE}\"")
+    return jgitver.version
 }
