@@ -8,17 +8,16 @@ import java.util.*
 buildscript {
     dependencies {
         // TODO look for alternatives
-        classpath(group = "fr.brouillard.oss", name = "jgitver", version = "0.14.0")
+        classpath(group = "fr.brouillard.oss", name = "jgitver", version = "_")
     }
 }
 
 plugins {
     `java-gradle-plugin`
     `maven-publish`
-    kotlin("jvm") version "1.6.20"
-    id("org.cadixdev.licenser") version "0.6.1"
-    id("com.gradle.plugin-publish") version "0.14.0"
-    id("fr.brouillard.oss.gradle.jgitver") version "0.10.+"
+    kotlin("jvm")
+    id("org.cadixdev.licenser")
+    id("com.gradle.plugin-publish")
 }
 
 group = "wtf.gofancy.koremods"
@@ -57,10 +56,6 @@ license {
 
 repositories {
     mavenCentral()
-    maven { 
-        name = "Su5eD Artifactory"
-        url = uri("https://su5ed.jfrog.io/artifactory/maven")
-    }
     maven {
         name = "Garden of Fancy"
         url = uri("https://maven.gofancy.wtf/releases")
@@ -80,11 +75,11 @@ dependencies {
     implementation(kotlin("scripting-jvm"))
     implementation(kotlin("scripting-jvm-host"))
     
-    implementation(group = "net.minecraftforge.gradle", name = "ForgeGradle", version = "5.1.+")
-    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "0.3.21")
+    implementation(group = "net.minecraftforge.gradle", name = "ForgeGradle", version = "_")
+    implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "_")
 
-    testImplementation(group = "org.assertj", name = "assertj-core", version = "3.19.0")
-    testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.7.1")
+    testImplementation(group = "org.assertj", name = "assertj-core", version = "_")
+    testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "_")
 }
 
 tasks {
@@ -116,7 +111,7 @@ tasks {
         }
     }
 
-    wrapper {
+    withType<Wrapper> {
         gradleVersion = "7.4"
         distributionType = Wrapper.DistributionType.ALL
     }
