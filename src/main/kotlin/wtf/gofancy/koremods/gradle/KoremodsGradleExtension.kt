@@ -48,7 +48,7 @@ open class KoremodsGradleExtension @Inject constructor(project: Project) {
     val useWorkerDaemon: Property<Boolean> = project.objects.property(Boolean::class.java)
         .convention(true)
     val workerDaemonOptions: Property<WorkerDaemonOptions> = project.objects.property(WorkerDaemonOptions::class.java)
-        .convention(project.provider { WorkerDaemonOptions("256M") })
+        .convention(project.provider { WorkerDaemonOptions("512M") })
     private val sourceSets: MutableSet<SourceSet> = mutableSetOf()
 
     fun sources(vararg sources: SourceSet) {
