@@ -41,7 +41,6 @@ import wtf.gofancy.koremods.Identifier
 import java.io.File
 import java.io.Serializable
 import javax.inject.Inject
-import kotlin.io.path.pathString
 
 /**
  * Contains compilation properties of a koremods script.
@@ -132,12 +131,7 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
             changes.getFileChanges(script.inputFile).any()
         }
         val params = project.objects.newInstance(CompileScriptAction.CompileScriptParameters::class.java).apply {
-            // Convert scripts to CompilableScripts, which use resolved property values
-            val candidateCompilableScripts = candidateScripts.map { script ->
-                // Path is not serializable, so we convert it to a string first
-                CompilableScript(script.identifier.get(), script.inputFile.asFile.map { it.toPath().pathString }.get(), script.outputFile.get().asFile)
-            }
-            scriptResources.set(candidateCompilableScripts)
+            scriptResources.set(candidateScripts)
             classPath.from(scriptLibraries)
         }
         // Submit the script compilation parameters to the isolated worker

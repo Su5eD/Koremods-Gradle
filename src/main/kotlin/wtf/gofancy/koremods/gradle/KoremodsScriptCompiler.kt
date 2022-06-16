@@ -28,12 +28,10 @@ import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.provider.ListProperty
 import org.gradle.workers.WorkAction
 import org.gradle.workers.WorkParameters
-import wtf.gofancy.koremods.Identifier
 import wtf.gofancy.koremods.compileScriptResult
 import wtf.gofancy.koremods.readScriptSource
 import java.io.File
 import java.io.FileOutputStream
-import java.io.Serializable
 import java.lang.invoke.MethodHandles
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -41,7 +39,6 @@ import java.util.concurrent.TimeUnit
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
-import kotlin.io.path.Path
 import kotlin.script.experimental.api.ScriptCompilationConfiguration
 import kotlin.script.experimental.api.defaultImports
 import kotlin.script.experimental.api.dependencies
@@ -51,16 +48,6 @@ import kotlin.script.experimental.jvm.updateClasspath
 import kotlin.script.experimental.util.PropertiesCollection
 
 /**
- * Contains resolved compilation configuration values of a koremods script.
- * Implements Serializable so that it can be sent to the script compiler daemon.
- * 
- * @param identifier the script's unique [Identifier]
- * @param sourcePath path to the script's source file
- * @param outputFile the compiled script's output file
- */
-data class CompilableScript(val identifier: Identifier, val sourcePath: String, val outputFile: File) : Serializable
-
-/**
  * Gradle Worker script compilation action used to parallelly compile koremods scripts in an isolated environment.
  */
 abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScriptParameters> {
@@ -68,9 +55,9 @@ abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScrip
         /**
          * A list of candidate compilable scripts
          * 
-         * @see CompilableScript
+         * @see ScriptResource
          */
-        val scriptResources: ListProperty<CompilableScript>
+        val scriptResources: ListProperty<ScriptResource>
 
         /**
          * The koremods script compilation classpath, containing script dependencies
@@ -102,11 +89,11 @@ abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScrip
      * 
      * @param script the script to be compiled
      */
-    private fun compileScript(script: CompilableScript) {
+    private fun compileScript(script: ScriptResource) {
         // Read the script's source
-        val source = readScriptSource(script.identifier, Path(script.sourcePath))
+        val source = readScriptSource(script.identifier.get(), script.inputFile.asFile.get().toPath())
         // Compile the script using the configured compilation classpath
-        val compiled = compileScriptResult(script.identifier, source) {
+        val compiled = compileScriptResult(script.identifier.get(), source) {
             jvm {
                 updateClasspath(parameters.classPath.files)
             }
@@ -114,7 +101,7 @@ abstract class CompileScriptAction : WorkAction<CompileScriptAction.CompileScrip
         // Ensure the resulting object is the correct type (other types may be returned by loading the script from a jar, for example)
         val compiledScript = compiled as? KJvmCompiledScript ?: throw IllegalArgumentException("Unsupported compiled script type $compiled")
         // Save the compiled script to the output file jar
-        compiledScript.saveScriptToJar(script.outputFile)
+        compiledScript.saveScriptToJar(script.outputFile.asFile.get())
     }
 }
 
