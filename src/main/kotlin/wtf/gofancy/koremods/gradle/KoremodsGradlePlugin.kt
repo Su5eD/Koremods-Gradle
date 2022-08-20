@@ -24,7 +24,6 @@
 
 package wtf.gofancy.koremods.gradle
 
-import net.minecraftforge.gradle.common.util.MinecraftExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
@@ -33,7 +32,6 @@ import org.gradle.api.attributes.Category
 import org.gradle.api.attributes.CompatibilityCheckDetails
 import org.gradle.api.attributes.Usage
 import org.gradle.api.plugins.JavaPlugin
-import java.io.File
 
 class KoremodsGradlePlugin : Plugin<Project> {
     companion object {
@@ -44,9 +42,9 @@ class KoremodsGradlePlugin : Plugin<Project> {
         const val SCRIPT_COMPILER_CLASSPATH_USAGE = "script-compiler-classpath"
 
         /**
-         * ForgeGradle RunConfig token used for the runtime classpath
+         * The name of ForgeGradle's configuration used to add non-mod libraries to the minecraft_classpath
          */
-        const val MINECRAFT_CLASSPATH_TOKEN = "minecraft_classpath"
+        const val MINECRAFT_LIBRARY_CONFIGURATION_NAME = "minecraftLibrary"
     }
 
     override fun apply(project: Project) {
@@ -78,32 +76,12 @@ class KoremodsGradlePlugin : Plugin<Project> {
         project.dependencies.attributesSchema.getMatchingStrategy(Usage.USAGE_ATTRIBUTE).compatibilityRules
             .add(ScriptCompilerClasspathUsageCompatibilityRule::class.java)
 
+        // Add koremodsImplementation dependencies avaiable on FG's minecraft_classpath at runtime
+        project.configurations.findByName(MINECRAFT_LIBRARY_CONFIGURATION_NAME)?.extendsFrom(koremodsImplementation)
+
         project.afterEvaluate { proj ->
             // Apply the koremodsExtension's configured values
             koremodsExtension.apply(proj)
-            
-            // ForgeGradle RunConfig runtime classpath integration
-            proj.minecraftExtension?.apply {
-                // Resolve the koremods configuration and join the file paths
-                val koremodsClassPath: () -> String = {
-                    koremodsImplementation.copyRecursive()
-                        .resolve()
-                        .joinToString(separator = File.pathSeparator, transform = File::getAbsolutePath)
-                }
-                
-                // Add koremodsClassPath to each run configuration's minecraft_classpath token
-                runs.all { run -> 
-                    // Get the currect minecraft_classpath value
-                    val oldClassPath = run.lazyTokens[MINECRAFT_CLASSPATH_TOKEN]
-                    // Wrap the lazy token so that we can add our own part
-                    run.lazyToken(MINECRAFT_CLASSPATH_TOKEN) {
-                        val classPath = koremodsClassPath()
-                        // Merge the existing value with koremodsClassPath if it exists
-                        if (oldClassPath != null) "${oldClassPath.get()}${File.pathSeparator}$classPath"
-                        else classPath
-                    }
-                }
-            }
         }
     }
 
@@ -121,12 +99,6 @@ class KoremodsGradlePlugin : Plugin<Project> {
         }
     }
 }
-
-/**
- * Gets the minecraft extension if the ForgeGradle plugin is applied, otherwise null 
- */
-internal val Project.minecraftExtension: MinecraftExtension?
-    get() = extensions.findByType(MinecraftExtension::class.java)
 
 /**
  * A rule to make [Usage.JAVA_RUNTIME] compatible with [KoremodsGradlePlugin.SCRIPT_COMPILER_CLASSPATH_USAGE]
