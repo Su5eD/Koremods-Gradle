@@ -52,10 +52,7 @@ class KoremodsGradlePlugin : Plugin<Project> {
         val koremodsExtension = project.extensions.create(KoremodsGradleExtension.EXTENSION_NAME, KoremodsGradleExtension::class.java)
         // Create the koremods configuration for adding required runtime dependencies (such as koremods-script and frontends)
         val koremodsImplementation = project.configurations.create(KOREMODS_CONFIGURATION_NAME) { conf ->
-            // Set the category attribute to LIBRARY
-            conf.attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.objects.named(Category::class.java, Category.LIBRARY))
-            // Set the usage attribute to JAVA_RUNTIME
-            conf.attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
+            conf.defaultAttributes(project)
         }
 
         // Apply the java plugin in case it wasn't applied yet
@@ -77,7 +74,10 @@ class KoremodsGradlePlugin : Plugin<Project> {
             .add(ScriptCompilerClasspathUsageCompatibilityRule::class.java)
 
         // Add koremodsImplementation dependencies avaiable on FG's minecraft_classpath at runtime
-        project.configurations.findByName(MINECRAFT_LIBRARY_CONFIGURATION_NAME)?.extendsFrom(koremodsImplementation)
+        project.configurations.findByName(MINECRAFT_LIBRARY_CONFIGURATION_NAME)?.let { conf ->
+            conf.extendsFrom(koremodsImplementation)
+            conf.defaultAttributes(project)
+        }
 
         project.afterEvaluate { proj ->
             // Apply the koremodsExtension's configured values
@@ -97,6 +97,16 @@ class KoremodsGradlePlugin : Plugin<Project> {
             conf.attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, usage))
             conf.extendsFrom(parent)
         }
+    }
+
+    /**
+     * Set the default Koremods Gradle resolution attributes on a configuration
+     */
+    private fun Configuration.defaultAttributes(project: Project) {
+        // Set the category attribute to LIBRARY
+        attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.objects.named(Category::class.java, Category.LIBRARY))
+        // Set the usage attribute to JAVA_RUNTIME
+        attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
     }
 }
 
