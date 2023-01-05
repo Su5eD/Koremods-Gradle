@@ -1,16 +1,7 @@
-import fr.brouillard.oss.jgitver.GitVersionCalculator
-import fr.brouillard.oss.jgitver.Strategies
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.*
-
-buildscript {
-    dependencies {
-        // TODO look for alternatives
-        classpath(group = "fr.brouillard.oss", name = "jgitver", version = "_")
-    }
-}
 
 plugins {
     `java-gradle-plugin`
@@ -18,10 +9,11 @@ plugins {
     kotlin("jvm")
     id("org.cadixdev.licenser")
     id("com.gradle.plugin-publish")
+    id("me.qoomon.git-versioning")
 }
 
 group = "wtf.gofancy.koremods"
-version = getGitVersion()
+version = "0.0.0-SNAPSHOT"
 
 pluginBundle {
     website = "https://gitlab.com/gofancy/koremods"
@@ -40,6 +32,12 @@ gradlePlugin {
     }
 }
 
+gitVersioning.apply {
+    rev {
+        version = "\${describe.tag.version.major}.\${describe.tag.version.minor}.\${describe.tag.version.patch.plus.describe.distance}"
+    }
+}
+
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(JavaVersion.VERSION_11.majorVersion))
 }
@@ -55,14 +53,11 @@ license {
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven {
         name = "Garden of Fancy"
         url = uri("https://maven.gofancy.wtf/releases")
-    }
-    maven {
-        name = "MinecraftForge"
-        url = uri("https://maven.minecraftforge.net")
     }
 }
 
@@ -111,7 +106,7 @@ tasks {
     }
 
     withType<Wrapper> {
-        gradleVersion = "7.4"
+        gradleVersion = "7.5.1"
         distributionType = Wrapper.DistributionType.ALL
     }
 }
@@ -133,12 +128,4 @@ publishing {
             }
         }
     }
-}
-
-fun getGitVersion(): String {
-    val jgitver = GitVersionCalculator.location(rootDir)
-        .setNonQualifierBranches("master")
-        .setStrategy(Strategies.SCRIPT)
-        .setScript("print \"\${metadata.CURRENT_VERSION_MAJOR};\${metadata.CURRENT_VERSION_MINOR};\${metadata.CURRENT_VERSION_PATCH + metadata.COMMIT_DISTANCE}\"")
-    return jgitver.version
 }
