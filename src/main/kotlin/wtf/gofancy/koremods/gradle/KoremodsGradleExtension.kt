@@ -1,7 +1,7 @@
 /*
  * This file is part of Koremods Gradle, licensed under the MIT License
  *
- * Copyright (c) 2022 Garden of Fancy
+ * Copyright (c) 2023 Garden of Fancy
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal

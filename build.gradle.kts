@@ -53,7 +53,6 @@ license {
 }
 
 repositories {
-    mavenLocal()
     mavenCentral()
     maven {
         name = "Garden of Fancy"
