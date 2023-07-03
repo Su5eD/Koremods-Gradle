@@ -70,7 +70,7 @@ interface ScriptResource : Serializable {
 
 /**
  * Compiles Koremods Scripts in an isolated environment parallelly. The isolation mode can be configured to be on
- * [CLASSLOADER][IsolationMode.CLASSLOADER] or [PROCESS][IsolationMode.PROCESS] level.
+ * CLASSLOADER or PROCESS level.
  */
 @CacheableTask
 abstract class CompileKoremodsScriptsTask @Inject constructor(
@@ -145,10 +145,12 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
      * @param parameters compilation parameters
      */
     private fun submitWork(classpath: Collection<File>, parameters: CompileScriptAction.CompileScriptParameters) {
+        // Whether we should use an isolated daemon process
+        val useWorkerDaemon = koremodsExtension.useWorkerDaemon.get()
         // Get the desired worker factory, depending on whether the worker daemon is enabled
-        val workerFactory = if (koremodsExtension.useWorkerDaemon.get()) workerDaemonFactory else isolatedClassloaderWorkerFactory
+        val workerFactory = if (useWorkerDaemon) workerDaemonFactory else isolatedClassloaderWorkerFactory
         // Get a worker configuration from our isolation mode and classpath
-        val workerRequirement = getWorkerRequirement(workerFactory.isolationMode, classpath)
+        val workerRequirement = getWorkerRequirement(useWorkerDaemon, classpath)
         // Create or get existing worker from the requirement
         val worker = workerFactory.getWorker(workerRequirement)
 
@@ -164,23 +166,18 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
     /**
      * Create a Gradle WorkerRequirement, which is used to configure and 'cache' the worker.
      * 
-     * @param mode the worker's isolation mode, should be [CLASSLOADER][IsolationMode.CLASSLOADER]
-     * or [PROCESS][IsolationMode.PROCESS]
+     * @param isolateProcess create a new process to run the worker
      * @param classpath the worker's classpath
      * @return a new WorkerRequirement
-     * @throws IllegalArgumentException if an unsupported [mode] is passed in
      */
-    private fun getWorkerRequirement(mode: IsolationMode, classpath: Collection<File>): WorkerRequirement {
+    private fun getWorkerRequirement(isolateProcess: Boolean, classpath: Collection<File>): WorkerRequirement {
         // Get the worker's Java fork options
         val daemonForkOptions = toDaemonForkOptions(classpath)
-        return when (mode) {
-            // Return an isolated worker requirement, java fork options are ignored
-            IsolationMode.CLASSLOADER -> IsolatedClassLoaderWorkerRequirement(daemonForkOptions.javaForkOptions.workingDir, daemonForkOptions.classLoaderStructure)
-            // Return a forked worker requirement
-            IsolationMode.PROCESS -> ForkedWorkerRequirement(daemonForkOptions.javaForkOptions.workingDir, daemonForkOptions)
-            // Throw an exception for unsupported modes
-            else -> throw IllegalArgumentException("Requested worker with unsupported isolation mode: $mode")
-        }
+        
+        // Return a forked worker requirement
+        return if (isolateProcess) ForkedWorkerRequirement(daemonForkOptions.javaForkOptions.workingDir, daemonForkOptions)
+        // Return an isolated worker requirement, java fork options are ignored 
+        else IsolatedClassLoaderWorkerRequirement(daemonForkOptions.javaForkOptions.workingDir, daemonForkOptions.classLoaderStructure)
     }
 
     /**
@@ -190,7 +187,7 @@ abstract class CompileKoremodsScriptsTask @Inject constructor(
      * @return worker Java fork options
      */
     private fun toDaemonForkOptions(classpath: Collection<File>): DaemonForkOptions {
-        // Create the worker's hierarchical class loader structure 
+        // Create the worker's hierarchical class loader structure, required to use our own version of kotlin
         val classLoaderStructure = HierarchicalClassLoaderStructure(classLoaderRegistry.gradleWorkerExtensionSpec)
             .withChild(getKotlinFilterSpec()) // Filter out gradle's kotlin libs
             .withChild(VisitableURLClassLoader.Spec("worker-loader", DefaultClassPath.of(classpath).asURLs)) // Set the worker's classpath

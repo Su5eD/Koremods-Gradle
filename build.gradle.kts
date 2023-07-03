@@ -15,26 +15,25 @@ plugins {
 group = "wtf.gofancy.koremods"
 version = "0.0.0-SNAPSHOT"
 
-pluginBundle {
-    website = "https://gitlab.com/gofancy/koremods"
-    vcsUrl = "https://gitlab.com/gofancy/koremods/koremods-gradle"
-    tags = listOf("kotlin", "kotlin-script", "bytecode-manipulation")
-}
-
 gradlePlugin {
+    website.set("https://gitlab.com/gofancy/koremods")
+    vcsUrl.set("https://gitlab.com/gofancy/koremods/koremods-gradle")
+
     plugins {
         create("koremods-gradle") {
             id = "wtf.gofancy.koremods.gradle"
             displayName = "Koremods Gradle"
             description = "A Gradle plugin for pre-compiling Koremods scripts"
             implementationClass = "wtf.gofancy.koremods.gradle.KoremodsGradlePlugin"
+            tags.set(listOf("kotlin", "kotlin-script", "bytecode-manipulation"))
         }
     }
 }
 
 gitVersioning.apply {
     rev {
-        version = "\${describe.tag.version.major}.\${describe.tag.version.minor}.\${describe.tag.version.patch.plus.describe.distance}"
+        version =
+            "\${describe.tag.version.major}.\${describe.tag.version.minor}.\${describe.tag.version.patch.plus.describe.distance}"
     }
 }
 
@@ -48,7 +47,7 @@ license {
     ext["year"] = Calendar.getInstance().get(Calendar.YEAR)
     ext["name"] = "Garden of Fancy"
     ext["app"] = "Koremods Gradle"
-    
+
     include("**/**.kt")
 }
 
@@ -68,7 +67,7 @@ dependencies {
     implementation(kotlin("scripting-common"))
     implementation(kotlin("scripting-jvm"))
     implementation(kotlin("scripting-jvm-host"))
-    
+
     implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "_")
 
     testImplementation(group = "org.assertj", name = "assertj-core", version = "_")
@@ -92,20 +91,20 @@ tasks {
     withType<Jar> {
         manifest {
             attributes(
-                    "Name" to "wtf/gofancy/koremods/gradle",
-                    "Specification-Title" to "Koremods Gradle",
-                    "Specification-Version" to project.version,
-                    "Specification-Vendor" to "Garden of Fancy",
-                    "Implementation-Title" to "wtf.gofancy.koremods.gradle",
-                    "Implementation-Version" to project.version,
-                    "Implementation-Vendor" to "Garden of Fancy",
-                    "Implementation-Timestamp" to DateTimeFormatter.ISO_INSTANT.format(Instant.now())
+                "Name" to "wtf/gofancy/koremods/gradle",
+                "Specification-Title" to "Koremods Gradle",
+                "Specification-Version" to project.version,
+                "Specification-Vendor" to "Garden of Fancy",
+                "Implementation-Title" to "wtf.gofancy.koremods.gradle",
+                "Implementation-Version" to project.version,
+                "Implementation-Vendor" to "Garden of Fancy",
+                "Implementation-Timestamp" to DateTimeFormatter.ISO_INSTANT.format(Instant.now())
             )
         }
     }
 
     withType<Wrapper> {
-        gradleVersion = "7.5.1"
+        gradleVersion = "8.2"
         distributionType = Wrapper.DistributionType.ALL
     }
 }
@@ -114,7 +113,7 @@ publishing {
     repositories {
         val mavenUser = System.getenv("GOFANCY_MAVEN_USER")
         val mavenToken = System.getenv("GOFANCY_MAVEN_TOKEN")
-        
+
         if (mavenUser != null && mavenToken != null) {
             maven {
                 name = "gofancy"
