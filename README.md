@@ -1,15 +1,8 @@
-<h1 align="center">Koremods Gradle</h1>
-<div align="center">
-  <a href="https://ci.su5ed.dev/buildConfiguration/KoremodsGradle_BuildBranch">
-    <img src="https://ci.su5ed.dev/app/rest/builds/buildType:id:KoremodsGradle_BuildBranch/statusIcon.svg" align="center" alt="TeamCity build status">
-  </a>
-  <a href="https://maven.gofancy.wtf/releases/wtf/gofancy/koremods/koremods-gradle">
-    <img src="https://maven.reposilite.com/api/badge/latest/releases/com/reposilite/reposilite?color=40c14a&name=Reposilite&prefix=v&filter=3" align="center" alt="Latest Release" />
-  </a>
-  <a href="https://gitlab.com/gofancy/koremods/koremods-gradle/-/blob/master/LICENSE">
-    <img src="https://img.shields.io/gitlab/license/gofancy/koremods/koremods-gradle?color=brightgreen" align="center" alt="License"/>
-  </a>
-</div> 
+# Koremods Gradle
+
+[![TeamCity build status](https://ci.su5ed.dev/app/rest/builds/buildType:id:KoremodsGradle_BuildBranch/statusIcon.svg)](https://ci.su5ed.dev/buildConfiguration/KoremodsGradle_BuildBranch)
+[![Latest Release](https://maven.gofancy.wtf/api/badge/latest/releases/wtf/gofancy/koremods/koremods-gradle?color=40c14a&name=Latest%20Release)](https://maven.gofancy.wtf/releases/wtf/gofancy/koremods/koremods-gradle)
+[![License](https://img.shields.io/gitlab/license/gofancy/koremods/koremods-gradle?color=brightgreen)](https://gitlab.com/gofancy/koremods/koremods-gradle/-/blob/master/LICENSE)
 
 Koremods Gradle is a Gradle plugin created for the Koremods bytecode modification framework. Its goal is to pre-compile
 Kotlin Scripts during build time to minimize runtime overhead.
@@ -31,7 +24,8 @@ In an effort to improve script evaluation times, Koremods Gradle was created.
 ## How it works
 
 Internally in the Kotlin Scripting library, the execution process is split into 2 parts - compilation and evaluation.
-Thanks to the API for both parts being public, we can easily separate them between program build time and run time.
+Thanks to the API for both parts being public, we can easily separate them between program build time and run time.  
+
 Koremods Gradle hooks into Gradle resource processing, compiling script files and replacing them in the jar artifact
 with the compilation output (usually a jar file). For faster re-compilation when making adjustments to scripts, it
 leverages the [Gradle Worker API](https://docs.gradle.org/current/userguide/worker_api.html) to load the scripting
