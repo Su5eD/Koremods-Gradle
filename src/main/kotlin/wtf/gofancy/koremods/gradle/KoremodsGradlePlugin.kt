@@ -24,6 +24,9 @@
 
 package wtf.gofancy.koremods.gradle
 
+import net.neoforged.gradle.common.util.constants.RunsConstants
+import net.neoforged.gradle.dsl.common.runs.run.Run
+import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
@@ -41,15 +44,13 @@ class KoremodsGradlePlugin : Plugin<Project> {
         const val SCRIPT_CLASSPATH_CONFIGURATION_NAME = "koremodsScriptClasspath"
         const val SCRIPT_COMPILER_CLASSPATH_USAGE = "script-compiler-classpath"
 
-        /**
-         * The name of ForgeGradle's configuration used to add non-mod libraries to the minecraft_classpath
-         */
-        const val MINECRAFT_LIBRARY_CONFIGURATION_NAME = "minecraftLibrary"
+        const val NEOGRADLE_PLUGIN_ID = "net.neoforged.gradle.userdev"
     }
 
     override fun apply(project: Project) {
         // Create the Koremods project extension
-        val koremodsExtension = project.extensions.create(KoremodsGradleExtension.EXTENSION_NAME, KoremodsGradleExtension::class.java)
+        val koremodsExtension =
+            project.extensions.create(KoremodsGradleExtension.EXTENSION_NAME, KoremodsGradleExtension::class.java)
         // Create the koremods configuration for adding required runtime dependencies (such as koremods-script and frontends)
         val koremodsImplementation = project.configurations.create(KOREMODS_CONFIGURATION_NAME) { conf ->
             conf.defaultAttributes(project)
@@ -64,7 +65,11 @@ class KoremodsGradlePlugin : Plugin<Project> {
         // Create the script compiler classpath configuration, used as the classpath of the isolated script compiler environment.
         // Variants with the 'script-compiler-classpath' usage attribute will be selected primarily.
         // In case one doesn't exist, 'JAVA_RUNTIME' will be selected instead
-        project.createUsageConfiguration(SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME, SCRIPT_COMPILER_CLASSPATH_USAGE, koremodsImplementation)
+        project.createUsageConfiguration(
+            SCRIPT_COMPILER_CLASSPATH_CONFIGURATION_NAME,
+            SCRIPT_COMPILER_CLASSPATH_USAGE,
+            koremodsImplementation
+        )
         // Create the script compilation classpath, used for compiling koremods scripts.
         // Requests the 'JAVA_API' usage variant for compile-time artifacts
         project.createUsageConfiguration(SCRIPT_CLASSPATH_CONFIGURATION_NAME, Usage.JAVA_API, koremodsImplementation)
@@ -73,10 +78,9 @@ class KoremodsGradlePlugin : Plugin<Project> {
         project.dependencies.attributesSchema.getMatchingStrategy(Usage.USAGE_ATTRIBUTE).compatibilityRules
             .add(ScriptCompilerClasspathUsageCompatibilityRule::class.java)
 
-        // Add koremodsImplementation dependencies avaiable on FG's minecraft_classpath at runtime
-        project.configurations.findByName(MINECRAFT_LIBRARY_CONFIGURATION_NAME)?.let { conf ->
-            conf.extendsFrom(koremodsImplementation)
-            conf.defaultAttributes(project)
+        // Make koremodsImplementation dependencies available in NeoGradle run configurations
+        project.pluginManager.withPlugin(NEOGRADLE_PLUGIN_ID) {
+            configureNeoGradle(project, koremodsImplementation)
         }
 
         project.afterEvaluate { proj ->
@@ -85,9 +89,19 @@ class KoremodsGradlePlugin : Plugin<Project> {
         }
     }
 
+    private fun configureNeoGradle(project: Project, koremodsImplementation: Configuration) {
+        project.extensions.configure<NamedDomainObjectContainer<Run>>(RunsConstants.Extensions.RUNS) { runs -> 
+            runs.configureEach { run -> 
+                run.dependencies { 
+                    it.configuration.extendsFrom(koremodsImplementation)
+                }
+            }
+        }
+    }
+
     /**
      * Create a [Configuration] with a specific [Usage] attribute and parent.
-     * 
+     *
      * @param name the name of the configuration
      * @param usage the value of the Usage attribute
      * @param parent the configuration to extend from
