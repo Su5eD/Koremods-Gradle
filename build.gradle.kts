@@ -57,6 +57,11 @@ repositories {
         name = "Garden of Fancy"
         url = uri("https://maven.gofancy.wtf/releases")
     }
+    maven {
+        name = "NeoForged"
+        url = uri("https://maven.neoforged.net/releases")
+    }
+    gradlePluginPortal()
 }
 
 dependencies {
@@ -69,6 +74,7 @@ dependencies {
     implementation(kotlin("scripting-jvm-host"))
 
     implementation(group = "wtf.gofancy.koremods", name = "koremods-script", version = "_")
+    compileOnly(group = "net.neoforged.gradle", name = "userdev", version = "_") 
 
     testImplementation(group = "org.assertj", name = "assertj-core", version = "_")
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "_")
